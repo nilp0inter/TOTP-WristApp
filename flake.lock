@@ -1,0 +1,41 @@
+{
+  "nodes": {
+    "assembler": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1689502693,
+        "narHash": "sha256-J2Lda6gesp9oq6SBKmTdDko2nMEU+nUf3qQ0yTvEKF0=",
+        "owner": "synthead",
+        "repo": "timex-datalink-assembler",
+        "rev": "c27a8059c80e038e5f93e07acd6d1fb0deadf90b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "synthead",
+        "repo": "timex-datalink-assembler",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1705856552,
+        "narHash": "sha256-JXfnuEf5Yd6bhMs/uvM67/joxYKoysyE3M2k6T3eWbg=",
+        "path": "/nix/store/rqdf3gfjq8zh488msnv62h03kkzr308q-source",
+        "rev": "612f97239e2cc474c13c9dafa0df378058c5ad8d",
+        "type": "path"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "root": {
+      "inputs": {
+        "assembler": "assembler",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
