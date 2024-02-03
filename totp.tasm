@@ -81,8 +81,6 @@ SHOWLEAP        brclr   0,FLAGBYTE,SHOWDISP     ; Do we want to see the main dis
                 bsr     DEBUGUNIX
                 rts
 
-ISTHISYEAR      jmp     SAYEOLMSG
-
 DOTOGGLE        brset   0,FLAGBYTE,CLEARIT      ; If it is set, just jump to clear it like normal
                 bset    0,FLAGBYTE              ; Already clear, so set it
                 bra     SHOWLEAP                ; and let the refresh code handle it
