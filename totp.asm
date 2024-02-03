@@ -99,20 +99,26 @@ SHOWLEAP        brclr   0,FLAGBYTE,SHOWDISP ; Do we want to see the main display
 MAYBETHISYEAR   jsr     GET_YEAR                ; Get the current year
                 sub     #CURRENT_YEAR
                 beq     ISTHISYEAR
-                lda     #$80
-                sta     TEMP
-                lda     #$33
-                sta     TEMP+1
-                lda     #$e1
-                sta     TEMP+2
-                lda     #$1
-                sta     TEMP+3
-                bsr     ADDSECS
+                bsr     ADDADAY
                 bsr     DEBUGUNIX
                 rts
 
-                ; tax
-                ; jmp     PUT_YEARX               ; Put the current year in the year place
+ADDADAY         lda     #$80                    ; Add a whole year worth of seconds
+                sta     TEMP
+                lda     #$51
+                sta     TEMP+1
+                lda     #$01
+                sta     TEMP+2
+                lda     #$00
+                sta     TEMP+3
+                bsr     ADDSECS
+                rts
+
+
+; ADDTOTHISMONTH  lda     #1
+;                 b
+
+
 
 ISTHISYEAR      jmp     SAYEOLMSG
 
@@ -145,19 +151,19 @@ ADDSECS         lda     UNIXTIME
                 rts
 
 DEBUGUNIX
-                lda     UNIXTIME
+                lda     UNIXTIME+3
                 bsr     GETBYTE
                 jsr     PUTTOP12
 
-                lda     UNIXTIME+1
+                lda     UNIXTIME+2
                 bsr     GETBYTE
                 jsr     PUTTOP34
 
-                lda     UNIXTIME+2
+                lda     UNIXTIME+1
                 bsr     GETBYTE
                 jsr     PUTTOP56
 
-                lda     UNIXTIME+3
+                lda     UNIXTIME
                 bsr     GETBYTE
                 jsr     PUTMID12
 
