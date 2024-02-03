@@ -80,15 +80,14 @@ STATETAB:
 ; This is called to process the state events.  We only see ENTER, RESUME, and DNNEXT events
 ;
 HANDLE_STATE0:
-                ; jsr     RESETUT
-                bset    1,$8f           ; Indicate that we can be suspended
-                lda     BTNSTATE        ; Get the event
+                bset    1,$8f                   ; Indicate that we can be suspended
+                lda     BTNSTATE                ; Get the event
                 cmp     #EVT_DNNEXT             ; Did they press the next button?
-                beq     DOTOGGLE        ; Yes, toggle what we are displaying
+                beq     DOTOGGLE                ; Yes, toggle what we are displaying
                 cmp     #EVT_DNPREV
                 beq     RESETUT
-CLEARIT         bclr    0,FLAGBYTE      ; Start us in the show display state
-SHOWDISP        jsr     CLEARALL        ; Clear the display
+CLEARIT         bclr    0,FLAGBYTE              ; Start us in the show display state
+SHOWDISP        jsr     CLEARALL                ; Clear the display
                 lda     #S6_TOTP-START          ; Get the offset for the second string
                 jsr     PUT6MID                 ; and put it on the middle line
                 lda     #SYS8_MODE              ; Get the system offset for the 'MODE' string
@@ -121,7 +120,7 @@ DOTOGGLE        brset   0,FLAGBYTE,CLEARIT      ; If it is set, just jump to cle
                 bset    0,FLAGBYTE              ; Already clear, so set it
                 bra     SHOWLEAP                ; and let the refresh code handle it
 
-RESETUT         lda     #UT0                     ; First reset the unix ts
+RESETUT         lda     #UT0                    ; First reset the unix ts
                 sta     UNIXTIME
                 lda     #UT1
                 sta     UNIXTIME+1
@@ -165,16 +164,16 @@ DEBUGUNIX
                 rts
 
 GETBYTE
-                sta     DATDIGIT2                       ; And save it away
-                lsra                                    ; Extract the high nibble
+                sta     DATDIGIT2               ; And save it away
+                lsra                            ; Extract the high nibble
                 lsra
                 lsra
                 lsra
 
-                sta     DATDIGIT1                       ; And save it
-                lda     DATDIGIT2                       ; Get the byte again
-                and     #$0f                            ; Extract the low nibble
-                sta     DATDIGIT2                       ; And save it
+                sta     DATDIGIT1               ; And save it
+                lda     DATDIGIT2               ; Get the byte again
+                and     #$0f                    ; Extract the low nibble
+                sta     DATDIGIT2               ; And save it
                 rts
 
                 ; ldx     UNIXTIME+1
@@ -217,7 +216,7 @@ GETBYTE
 ; (7) This is the main initialization routine which is called when we first get the app into memory
 ;
 MAIN:
-                lda     #$c0                ; We want button beeps and to indicate that we have been loaded
+                lda     #$c0                      ; We want button beeps and to indicate that we have been loaded
                 sta     $96
                 clr     FLAGBYTE        ; start with a clean slate
                 rts
