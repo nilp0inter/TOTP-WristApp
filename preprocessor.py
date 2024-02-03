@@ -1,4 +1,6 @@
 from datetime import datetime
+import math
+import sys
 
 def int_to_hex_bytes(num):
     """
@@ -18,19 +20,29 @@ def int_to_hex_bytes(num):
     return [f"{byte1:02X}", f"{byte2:02X}", f"{byte3:02X}", f"{byte4:02X}"]
 
 
-# Get the current date and time
-now = datetime.now()
+def tcount():
+    # Get the current date and time
+    now = datetime.utcnow()
 
-# Create a datetime object for the first day of the current year at midnight
-start_of_year = datetime(now.year, 1, 1, 0, 0, 0)
+    # Optionally, if you need the timestamp as an integer (e.g., for Unix timestamp)
+    timestamp = int(math.floor(now.timestamp()/30))
+    hex_bytes = int_to_hex_bytes(timestamp)
 
-# Optionally, if you need the timestamp as an integer (e.g., for Unix timestamp)
-timestamp = int(start_of_year.timestamp())
+    return f"TCOUNT    db   ${hex_bytes[3]},${hex_bytes[2]},${hex_bytes[1]},${hex_bytes[0]}"
 
-hex_bytes = int_to_hex_bytes(timestamp)
-print(f"CURRENT_YEAR        EQU    {str(now.year)[-2:]}")
-print("START_OF_YEAR:")
-print(f"        db    ${hex_bytes[3]}")
-print(f"        db    ${hex_bytes[2]}")
-print(f"        db    ${hex_bytes[1]}")
-print(f"        db    ${hex_bytes[0]}")
+
+SYMBOLS = {
+    "%TCOUNT%": tcount,
+}
+
+
+def main():
+    for line in sys.stdin:
+        line = line.strip()
+        if line in SYMBOLS:
+            line = SYMBOLS[line]()
+        print(line)
+
+
+if __name__ == '__main__':
+    main()
