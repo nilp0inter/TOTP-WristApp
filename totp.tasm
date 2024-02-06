@@ -61,6 +61,8 @@ STATETAB0:
                 ; db      EVT_TIMER2,TIM_ONCE,0
                 db      EVT_RESUME,TIM_ONCE,0   ; Resume from a nested app
                 db      EVT_DNNEXT,TIM_ONCE,0   ; Next button
+                db      EVT_DNPREV,TIM_ONCE,0   ; Prev button
+                db      EVT_DNSET,TIM_ONCE,0   ; Set button
                 db      EVT_MODE,TIM_ONCE,$FF   ; Mode button
                 db      EVT_END
 
@@ -78,6 +80,10 @@ HANDLE_STATE0:
                 lda     BTNSTATE                ; Get the event
                 cmp     #EVT_DNNEXT
                 beq     SHOWCOUNTDOWN
+                cmp     #EVT_DNPREV
+                beq     SHOWNOENTRIES
+                cmp     #EVT_DNSET
+                beq     DELETEENTRY
                 ; fall into SHOWBANNER
 SHOWBANNER      jsr     CLEARALL                ; Clear the display
                 lda     #S6_TOTP-START          ; Get the offset for the second string
@@ -100,6 +106,14 @@ BLINK_SECS      ldx     #COUNTDOWN
                 bset    2,BTNFLAGS              ; Mark a blink routine as pending
                 rts
 
+SHOWNOENTRIES   lda     #SYS6_NO
+                jsr     PUTMSG1
+                lda     #S6_TOTP-START
+                jsr     PUT6MID
+                lda     #SYS8_ENTRIES
+                jmp     PUTMSGBOT
+
+DELETEENTRY     jmp     SAYHOLDTODELETE
 ; GETBYTE
 ;                 sta     DATDIGIT2               ; And save it away
 ;                 lsra                            ; Extract the high nibble
