@@ -1,6 +1,6 @@
 root = true
 
-[*.{asm,s,zsm}]
+[*.{asm,s,zsm,tasm}]
 charset = utf-8
 indent_style = space
 indent_size = 4
