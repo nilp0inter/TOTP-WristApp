@@ -32,16 +32,15 @@ def tcount():
 
 
 SYMBOLS = {
-    "%TCOUNT%": tcount,
+    "%TCOUNT%\n": tcount,
 }
 
 
 def main():
     for line in sys.stdin:
-        line = line.strip()
         if line in SYMBOLS:
             line = SYMBOLS[line]()
-        print(line)
+        sys.stdout.write(line)
 
 
 if __name__ == '__main__':
