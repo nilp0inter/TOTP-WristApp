@@ -3,13 +3,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
-#include <math.h>
 #include <assert.h>
 
 #define MAX_MSG_LEN 64 // Maximum message length as a constant
 #define BLOCK_SIZE 64 // Block size for SHA-1
-#define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 #define PADDED_LEN 128 // Hardcoded padded length
+#define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
 uint32_t a, b, c, d, e, f, k, temp;
 uint32_t w[16];
@@ -18,7 +17,9 @@ int i;
 uint64_t bitsLen;
 size_t paddedLen;
 uint8_t buffer[BLOCK_SIZE + MAX_MSG_LEN]; // Allocate buffer for the largest possible scenario
-uint8_t paddedInput[PADDED_LEN]; // Allocate buffer for the largest possible scenario
+uint8_t offset;
+uint32_t code;
+uint32_t divisor;
 
 void print_digest(uint32_t *digest) {
     for (i = 0; i < 5; i++) {
@@ -76,46 +77,31 @@ void process_block(uint32_t *h, const uint8_t *chunk) {
 }
 
 void sha1_hash(const char *input, size_t inputLen, uint32_t *h) {
-    bitsLen = inputLen * 8; // Length in bits
-
     h[0] = 0x67452301;
     h[1] = 0xEFCDAB89;
     h[2] = 0x98BADCFE;
     h[3] = 0x10325476;
     h[4] = 0xC3D2E1F0;
 
-    // Initialize the buffer to 0
-    memset(paddedInput, 0, PADDED_LEN);
-
-    // Copy input into padded input and append the 0x80 padding byte
-    memcpy(paddedInput, input, inputLen);
-    paddedInput[inputLen] = 0x80;
+    // Append 0x80 to the end of the message
+    buffer[inputLen] = 0x80;
 
     // Append the length in bits at the end of the last block
     for (i = 0; i < 8; i++) {
-        paddedInput[PADDED_LEN - 8 + i] = (uint8_t)(bitsLen >> (8 * (7 - i)));
+        buffer[PADDED_LEN - 8 + i] = (uint8_t)((inputLen * 8) >> (8 * (7 - i)));
     }
 
     // Process each block
     for (j = 0; j < PADDED_LEN; j += 64) {
-        process_block(h, paddedInput + j);
+        process_block(h, buffer + j);
     }
-
 }
 
 
 void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t msg_len, uint32_t *h) {
-    uint32_t temp_key[5]; // Temporary storage if key needs to be hashed
-    size_t i;
-
-    // NOTE: This step will be performed by the preprocessor, so this if
-    // statement can be ignored.
-    //
-    // If key is longer than BLOCK_SIZE, hash it
-    if (key_len > BLOCK_SIZE) {
-        sha1_hash((const char *)key, key_len, temp_key);
-        key = (uint8_t *)temp_key;
-        key_len = 20; // Length of SHA-1 hash output
+    // Initialize the buffer to 0
+    for (i = 0; i < PADDED_LEN; i++) {
+        buffer[i] = 0;
     }
 
     // Initialize buffer with k_ipad XOR operation
@@ -127,7 +113,9 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     }
 
     // Append message to the buffer
-    memcpy(buffer + BLOCK_SIZE, msg, msg_len);
+    for (i = 0; i < msg_len; i++) {
+        buffer[BLOCK_SIZE + i] = msg[i];
+    }
 
     // Compute inner hash
     sha1_hash((const char *)buffer, BLOCK_SIZE + msg_len, h);
@@ -170,43 +158,51 @@ uint32_t dynamic_truncation(uint32_t digest[5]) {
 }
 
 void get_current_time_step(uint8_t time_step[8]) {
-    memset(time_step, 0, 8); // Zero out the array to ensure clean state
+    for (i = 7; i >= 0; i--) {
+        time_step[i] = 0;
+    }
 
     uint64_t current_time = (uint64_t)time(NULL); // Get current Unix timestamp
     uint64_t timestep_value = current_time / 30; // Divide by the TOTP time step (e.g., 30 seconds)
 
     // Convert to big-endian format and ensure complete initialization
-    for (int i = 7; i >= 0; i--) {
+    for (i = 7; i >= 0; i--) {
         time_step[i] = (uint8_t)timestep_value;
         timestep_value >>= 8;
     }
 }
 
 void get_time_step(uint8_t time_step[8], uint64_t timestep) {
-    memset(time_step, 0, 8); // Zero out the array to ensure clean state
+    for (i = 7; i >= 0; i--) {
+        time_step[i] = 0;
+    }
 
-    for (int i = 7; i >= 0; i--) {
+    for (i = 7; i >= 0; i--) {
         time_step[i] = (uint8_t)timestep;
         timestep >>= 8;
     }
-    printf("Time step: %02x%02x%02x%02x%02x%02x%02x%02x\n", time_step[0], time_step[1], time_step[2], time_step[3], time_step[4], time_step[5], time_step[6], time_step[7]);
+    // DEBUG
+    /* printf("Time step: %02X%02X%02X%02X%02X%02X%02X%02X\n", time_step[0], time_step[1], time_step[2], time_step[3], time_step[4], time_step[5], time_step[6], time_step[7]); */
 }
 
-// Assuming digest is a uint8_t array with 20 bytes for SHA1 hash
 uint32_t extract_totp(const uint8_t* digest, int digits) {
     // Offset is the low 4 bits of the last byte of the digest
-    int offset = digest[19] & 0xF;
+    offset = digest[19] & 0x0F;
     
     // Extract the dynamic binary code
-    uint32_t code = ((digest[offset] & 0x7F) << 24)
-                  | ((digest[offset + 1] & 0xFF) << 16)
-                  | ((digest[offset + 2] & 0xFF) << 8)
-                  | (digest[offset + 3] & 0xFF);
+    code = ((digest[offset] & 0x7F) << 24)
+           | ((digest[offset + 1] & 0xFF) << 16)
+           | ((digest[offset + 2] & 0xFF) << 8)
+           | (digest[offset + 3] & 0xFF);
+
+    // Calculate 10^digits without using pow
+    divisor = 1;
+    for (i = 0; i < digits; i++) {
+        divisor *= 10;
+    }
     
     // Apply modulo operation with 10^digits
-    uint32_t totp = code % (uint32_t)pow(10, digits);
-    
-    return totp;
+    return code % divisor;
 }
 
 // To deal with the endianness, we need to convert the uint32_t array to a uint8_t array
@@ -234,13 +230,14 @@ void test_totp(const uint8_t* key, size_t key_len, const uint8_t* time_step, uin
     assert(totp == expected); // Verify TOTP
 }
 
-  /* |      59     |  1970-01-01  | 0000000000000001 | 94287082 |  SHA1  | */
-  /* |  1111111109 |  2005-03-18  | 00000000023523EC | 07081804 |  SHA1  | */
-  /* |  1111111111 |  2005-03-18  | 00000000023523ED | 14050471 |  SHA1  | */
-  /* |  1234567890 |  2009-02-13  | 000000000273EF07 | 89005924 |  SHA1  | */
-  /* |  2000000000 |  2033-05-18  | 0000000003F940AA | 69279037 |  SHA1  | */
-  /* | 20000000000 |  2603-10-11  | 0000000027BC86AA | 65353130 |  SHA1  | */
 
+// Test vectors from RFC 6238
+//  |      59     |  1970-01-01  | 0000000000000001 | 94287082 |  SHA1  |
+//  |  1111111109 |  2005-03-18  | 00000000023523EC | 07081804 |  SHA1  |
+//  |  1111111111 |  2005-03-18  | 00000000023523ED | 14050471 |  SHA1  |
+//  |  1234567890 |  2009-02-13  | 000000000273EF07 | 89005924 |  SHA1  |
+//  |  2000000000 |  2033-05-18  | 0000000003F940AA | 69279037 |  SHA1  |
+//  | 20000000000 |  2603-10-11  | 0000000027BC86AA | 65353130 |  SHA1  |
 int main() {
     const int digits = 8; // TOTP digits
     const uint8_t key[] = "12345678901234567890"; // Mock secret key
