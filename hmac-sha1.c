@@ -2,8 +2,10 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
+#include <math.h>
 
-#define MAX_MSG_LEN 32 // Maximum message length as a constant
+#define MAX_MSG_LEN 64 // Maximum message length as a constant
 #define BLOCK_SIZE 64 // Block size for SHA-1
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
@@ -97,10 +99,12 @@ void sha1_hash(const char *input, size_t inputLen, uint32_t *h) {
     free(paddedInput); // Free the allocated memory
 }
 
-void hmac_sha1(const uint8_t *key, size_t key_len, const char *msg, size_t msg_len, uint32_t *h) {
+void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t msg_len, uint32_t *h) {
     uint32_t temp_key[5]; // Temporary storage if key needs to be hashed
     size_t i;
 
+    // NOTE: This step will be performed by the preprocessor, so this code
+    // can be ignored.
     // If key is longer than BLOCK_SIZE, hash it
     if (key_len > BLOCK_SIZE) {
         sha1_hash((const char *)key, key_len, temp_key);
@@ -143,18 +147,88 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const char *msg, size_t msg_l
 }
 
 
-/*
-   >>> import hashlib, hmac
-   >>> hmac.new(b"your secret key", b"123456", hashlib.sha1).hexdigest()
-  'f1514f0827d8365cb8929b36468dbdb16e86dced'
-*/
+uint32_t dynamic_truncation(uint32_t digest[5]) {
+    // Convert digest to a byte pointer to access individual bytes
+    uint8_t* p = (uint8_t*)digest;
+
+    // Determine the offset. Use the last byte & 0x0F to get the offset value
+    uint8_t offset = p[19] & 0x0F; // Last byte of the HMAC-SHA1 result
+
+    // Build the truncatedHash from the bytes, ensuring big-endian order
+    uint32_t truncatedHash = ((uint32_t)p[offset] & 0x7F) << 24 |
+                             (uint32_t)p[offset + 1] << 16 |
+                             (uint32_t)p[offset + 2] << 8 |
+                             (uint32_t)p[offset + 3];
+
+    return truncatedHash;
+}
+
+// Function to fill the time_step array from the current Unix timestamp
+// Ensures the array is fully initialized to avoid issues with uninitialized memory
+void get_current_time_step(uint8_t time_step[8]) {
+    memset(time_step, 0, 8); // Zero out the array to ensure clean state
+
+    uint64_t current_time = (uint64_t)time(NULL); // Get current Unix timestamp
+    uint64_t timestep_value = current_time / 30; // Divide by the TOTP time step (e.g., 30 seconds)
+
+    // Convert to big-endian format and ensure complete initialization
+    for (int i = 7; i >= 0; i--) {
+        time_step[i] = (uint8_t)(timestep_value & 0xFF);
+        timestep_value >>= 8;
+    }
+}
+
+// Assuming digest is a uint8_t array with 20 bytes for SHA1 hash
+uint32_t extract_totp(const uint8_t* digest, int digits) {
+    // Offset is the low 4 bits of the last byte of the digest
+    int offset = digest[19] & 0xF;
+    
+    // Extract the dynamic binary code
+    uint32_t code = ((digest[offset] & 0x7F) << 24)
+                  | ((digest[offset + 1] & 0xFF) << 16)
+                  | ((digest[offset + 2] & 0xFF) << 8)
+                  | (digest[offset + 3] & 0xFF);
+    
+    // Apply modulo operation with 10^digits
+    uint32_t totp = code % (uint32_t)pow(10, digits);
+    
+    return totp;
+}
+
+// To deal with the endianness, we need to convert the uint32_t array to a uint8_t array
+// NOTE: The device is already big-endian, so this step won't be necessary
+void uint32_to_uint8(const uint32_t* input, uint8_t* output, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+        uint32_t value = input[i];
+        output[i * 4 + 0] = (value >> 24) & 0xFF;
+        output[i * 4 + 1] = (value >> 16) & 0xFF;
+        output[i * 4 + 2] = (value >> 8) & 0xFF;
+        output[i * 4 + 3] = value & 0xFF;
+    }
+}
+
+
 int main() {
-    const uint8_t key[] = "your secret key";
-    const char *message = "123456";
+    const uint8_t key[] = "12345678901234567890"; // Mock secret key
+    /* //       59     |  1970-01-01  | 0000000000000001 | 94287082 |  SHA1  | */
+    /* uint8_t time_step[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 }; */
+
+    uint8_t time_step[8];
+    get_current_time_step(time_step); // Get current time_step properly initialized
+
+
     uint32_t digest[5]; // To store the HMAC result
+    hmac_sha1(key, sizeof(key) - 1, time_step, sizeof(time_step), digest); // Calculate HMAC-SHA1
+                                                                           //
+    print_digest(digest); // Output the HMAC-SHA1 result
 
-    hmac_sha1(key, sizeof(key) - 1, message, strlen(message), digest);
-    print_digest(digest);
+    uint8_t byteDigest[20];
+    uint32_to_uint8(digest, byteDigest, 5);
 
+    int digits = 8; // TOTP digits
+    uint32_t totp = extract_totp(byteDigest, digits);
+    
+    printf("TOTP: %0*u\n", digits, totp);
+    
     return 0;
 }
