@@ -42,7 +42,15 @@
         done
       '';
     in pkgs.mkShell {
-      buildInputs = [ initEnv asm6805 WIN6811IDE COSMICHC05 pkgs.wine ];
+      buildInputs = [
+        initEnv
+        asm6805
+        WIN6811IDE
+        COSMICHC05
+        pkgs.wine
+        pkgs.entr
+        pkgs.gcc
+      ];
       shellHook = ''
         echo "Welcome to the 68HC05 development environment"
         echo ""
