@@ -14,3 +14,7 @@ upload: totp.zap
 
 showapi:
 	docker run -ti timex-datalink-assembler cat /root/wine/drive_c/Program\ Files/DataLink\ Devel/Inc150/Wristapp.i
+
+hmac-sha1: hmac-sha1.c
+	gcc -o hmac-sha1 hmac-sha1.c -lm
+	./hmac-sha1
