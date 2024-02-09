@@ -5,78 +5,24 @@
 #include <time.h>
 #include <assert.h>
 
+
 #define MAX_MSG_LEN 64 // Maximum message length as a constant
 #define BLOCK_SIZE 64 // Block size for SHA-1
 #define PADDED_LEN 128 // Hardcoded padded length
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
+
 uint32_t a, b, c, d, e, f, k, temp;
 uint32_t w[16];
-size_t j;
+uint8_t j;
 int i;
-uint64_t bitsLen;
-size_t paddedLen;
 uint8_t buffer[BLOCK_SIZE + MAX_MSG_LEN]; // Allocate buffer for the largest possible scenario
 uint8_t offset;
 uint32_t code;
 uint32_t divisor;
 
-void print_digest(uint32_t *digest) {
-    for (i = 0; i < 5; i++) {
-        printf("%08x", digest[i]);
-    }
-    printf("\n");
-}
 
-void process_block(uint32_t *h, const uint8_t *chunk) {
-    // Initialize w[16] from the chunk
-    for (i = 0; i < 16; i++) {
-        w[i] = (uint32_t)chunk[i*4] << 24 | (uint32_t)chunk[i*4+1] << 16 |
-               (uint32_t)chunk[i*4+2] << 8 | (uint32_t)chunk[i*4+3];
-    }
-
-    a = h[0];
-    b = h[1];
-    c = h[2];
-    d = h[3];
-    e = h[4];
-
-    // Main loop
-    for (i = 0; i < 80; i++) {
-        if (i < 20) {
-            f = (b & c) | ((~b) & d);
-            k = 0x5A827999;
-        } else if (i < 40) {
-            f = b ^ c ^ d;
-            k = 0x6ED9EBA1;
-        } else if (i < 60) {
-            f = (b & c) | (b & d) | (c & d);
-            k = 0x8F1BBCDC;
-        } else {
-            f = b ^ c ^ d;
-            k = 0xCA62C1D6;
-        }
-
-        if (i >= 16) {
-            w[i%16] = LEFTROTATE(w[(i+13)%16] ^ w[(i+8)%16] ^ w[(i+2)%16] ^ w[i%16], 1);
-        }
-
-        temp = LEFTROTATE(a, 5) + f + e + k + w[i%16];
-        e = d;
-        d = c;
-        c = LEFTROTATE(b, 30);
-        b = a;
-        a = temp;
-    }
-
-    h[0] += a;
-    h[1] += b;
-    h[2] += c;
-    h[3] += d;
-    h[4] += e;
-}
-
-void sha1_hash(const char *input, size_t inputLen, uint32_t *h) {
+void sha1_hash(size_t inputLen, uint32_t *h) {
     h[0] = 0x67452301;
     h[1] = 0xEFCDAB89;
     h[2] = 0x98BADCFE;
@@ -93,7 +39,51 @@ void sha1_hash(const char *input, size_t inputLen, uint32_t *h) {
 
     // Process each block
     for (j = 0; j < PADDED_LEN; j += 64) {
-        process_block(h, buffer + j);
+        // Begin inlining process_block
+        for (i = 0; i < 16; i++) {
+            w[i] = (uint32_t)buffer[j + i*4] << 24 | (uint32_t)buffer[j + i*4+1] << 16 |
+                   (uint32_t)buffer[j + i*4+2] << 8 | (uint32_t)buffer[j + i*4+3];
+        }
+
+        a = h[0];
+        b = h[1];
+        c = h[2];
+        d = h[3];
+        e = h[4];
+
+        for (i = 0; i < 80; i++) {
+            if (i < 20) {
+                f = (b & c) | ((~b) & d);
+                k = 0x5A827999;
+            } else if (i < 40) {
+                f = b ^ c ^ d;
+                k = 0x6ED9EBA1;
+            } else if (i < 60) {
+                f = (b & c) | (b & d) | (c & d);
+                k = 0x8F1BBCDC;
+            } else {
+                f = b ^ c ^ d;
+                k = 0xCA62C1D6;
+            }
+
+            if (i >= 16) {
+                w[i%16] = LEFTROTATE(w[(i+13)%16] ^ w[(i+8)%16] ^ w[(i+2)%16] ^ w[i%16], 1);
+            }
+
+            temp = LEFTROTATE(a, 5) + f + e + k + w[i%16];
+            e = d;
+            d = c;
+            c = LEFTROTATE(b, 30);
+            b = a;
+            a = temp;
+        }
+
+        h[0] += a;
+        h[1] += b;
+        h[2] += c;
+        h[3] += d;
+        h[4] += e;
+        // End inlining process_block
     }
 }
 
@@ -118,7 +108,7 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     }
 
     // Compute inner hash
-    sha1_hash((const char *)buffer, BLOCK_SIZE + msg_len, h);
+    sha1_hash(BLOCK_SIZE + msg_len, h);
 
     // Re-initialize buffer with k_opad XOR operation
     for (i = 0; i < key_len; i++) {
@@ -137,7 +127,7 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     }
 
     // Compute outer hash
-    sha1_hash((const char *)buffer, BLOCK_SIZE + 20, h);
+    sha1_hash(BLOCK_SIZE + 20, h);
 }
 
 
@@ -157,6 +147,7 @@ uint32_t dynamic_truncation(uint32_t digest[5]) {
     return truncatedHash;
 }
 
+
 void get_current_time_step(uint8_t time_step[8]) {
     for (i = 7; i >= 0; i--) {
         time_step[i] = 0;
@@ -172,6 +163,7 @@ void get_current_time_step(uint8_t time_step[8]) {
     }
 }
 
+
 void get_time_step(uint8_t time_step[8], uint64_t timestep) {
     for (i = 7; i >= 0; i--) {
         time_step[i] = 0;
@@ -185,10 +177,11 @@ void get_time_step(uint8_t time_step[8], uint64_t timestep) {
     /* printf("Time step: %02X%02X%02X%02X%02X%02X%02X%02X\n", time_step[0], time_step[1], time_step[2], time_step[3], time_step[4], time_step[5], time_step[6], time_step[7]); */
 }
 
+
 uint32_t extract_totp(const uint8_t* digest, int digits) {
     // Offset is the low 4 bits of the last byte of the digest
     offset = digest[19] & 0x0F;
-    
+
     // Extract the dynamic binary code
     code = ((digest[offset] & 0x7F) << 24)
            | ((digest[offset + 1] & 0xFF) << 16)
@@ -200,10 +193,11 @@ uint32_t extract_totp(const uint8_t* digest, int digits) {
     for (i = 0; i < digits; i++) {
         divisor *= 10;
     }
-    
+
     // Apply modulo operation with 10^digits
     return code % divisor;
 }
+
 
 // To deal with the endianness, we need to convert the uint32_t array to a uint8_t array
 // NOTE: The device is already big-endian, so this step won't be necessary
@@ -217,6 +211,7 @@ void uint32_to_uint8(const uint32_t* input, uint8_t* output, size_t length) {
     }
 }
 
+
 // Function to test a single TOTP case
 void test_totp(const uint8_t* key, size_t key_len, const uint8_t* time_step, uint32_t expected, int digits) {
     uint32_t digest[5]; // To store the HMAC result
@@ -228,6 +223,14 @@ void test_totp(const uint8_t* key, size_t key_len, const uint8_t* time_step, uin
     
     printf("TOTP: %0*u (Expected: %0*u)\n", digits, totp, digits, expected);
     assert(totp == expected); // Verify TOTP
+}
+
+
+void print_digest(uint32_t *digest) {
+    for (i = 0; i < 5; i++) {
+        printf("%08x", digest[i]);
+    }
+    printf("\n");
 }
 
 
