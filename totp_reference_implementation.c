@@ -9,18 +9,22 @@
 #define MAX_MSG_LEN 64 // Maximum message length as a constant
 #define BLOCK_SIZE 64 // Block size for SHA-1
 #define PADDED_LEN 128 // Hardcoded padded length
+
+// Define the left rotate operation
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
 
-uint32_t a, b, c, d, e, f, k, temp;
-uint32_t w[16];
+uint32_t a, b, c, d, e, f, k, temp;  // Store the temporary variables
+uint32_t w[16]; // Store the message schedule
+uint32_t h[5];  // Store the hash result
+
+
 uint8_t j;
-int i;
-uint8_t buffer[BLOCK_SIZE + MAX_MSG_LEN]; // Allocate buffer for the largest possible scenario
-uint8_t offset;
-uint32_t code;
-uint32_t divisor;
-uint32_t h[5];
+int32_t i;  // XXX: Why this needs to be signed?
+
+uint8_t buffer[BLOCK_SIZE + MAX_MSG_LEN]; // Shared buffer for HMAC-SHA1 and SHA-1
+uint8_t offset; // Offset for dynamic truncation and totp extraction
+uint32_t code;  // Final TOTP code
 
 
 void sha1_hash(size_t inputLen) {
@@ -41,6 +45,8 @@ void sha1_hash(size_t inputLen) {
     // Process each block
     for (j = 0; j < PADDED_LEN; j += 64) {
         for (i = 0; i < 16; i++) {
+            // TODO: w can be removed and use buffer directly
+            /* printf("w[%d] <- b[%d] | b[%d] | b[%d] | b[%d]\n", i, j + i*4, j + i*4+1, j + i*4+2, j + i*4+3); */
             w[i] = (uint32_t)buffer[j + i*4] << 24 | (uint32_t)buffer[j + i*4+1] << 16 |
                    (uint32_t)buffer[j + i*4+2] << 8 | (uint32_t)buffer[j + i*4+3];
         }
@@ -187,19 +193,19 @@ uint32_t extract_totp(const uint8_t* digest, int digits) {
            | ((digest[offset + 2] & 0xFF) << 8)
            | (digest[offset + 3] & 0xFF);
 
-    // Emulate 10^digits using repeated addition
-    uint32_t divisor = 1;
-    for (int i = 0; i < digits; i++) {
-        uint32_t temp = 0;
-        for (int j = 0; j < 10; j++) {
-            temp += divisor;
+    // Emulate 10^digits using repeated addition (k is the divisor)
+    k = 1;
+    for (i = 0; i < digits; i++) {
+        temp = 0;
+        for (j = 0; j < 10; j++) {
+            temp += k;
         }
-        divisor = temp;
+        k = temp;
     }
 
     // Apply modulo operation using repeated subtraction
-    while (code >= divisor) {
-        code -= divisor;
+    while (code >= k) {
+        code -= k;
     }
 
     return code;
