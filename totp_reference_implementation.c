@@ -286,6 +286,16 @@ int main() {
     get_time_step(time_step, 20000000000 / 30); // Get the time step for the sixth test case
     test_totp(key, sizeof(key) - 1, time_step, 65353130, digits);
     print_digest(h);
+
+    get_current_time_step(time_step); // Get the current time step
+    hmac_sha1(key, sizeof(key) - 1, time_step, 8); // Calculate HMAC-SHA1
+    uint32_to_uint8(h, buffer, 5); // Convert digest to bytes
+    code = extract_totp(buffer, digits); // Extract TOTP
+    printf("\nCurrent TOTP: %0*u\n\n", digits, code);
+
+    printf("You can check the current TOTP code at https://totp.danhersam.com/\n");
+    printf("Secret key: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ\n");
+    printf("Number of digits: %d\n", digits);
     
     return 0;
 }
