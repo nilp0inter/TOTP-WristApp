@@ -39,7 +39,6 @@ void sha1_hash(size_t inputLen, uint32_t *h) {
 
     // Process each block
     for (j = 0; j < PADDED_LEN; j += 64) {
-        // Begin inlining process_block
         for (i = 0; i < 16; i++) {
             w[i] = (uint32_t)buffer[j + i*4] << 24 | (uint32_t)buffer[j + i*4+1] << 16 |
                    (uint32_t)buffer[j + i*4+2] << 8 | (uint32_t)buffer[j + i*4+3];
@@ -83,7 +82,6 @@ void sha1_hash(size_t inputLen, uint32_t *h) {
         h[2] += c;
         h[3] += d;
         h[4] += e;
-        // End inlining process_block
     }
 }
 
@@ -188,14 +186,22 @@ uint32_t extract_totp(const uint8_t* digest, int digits) {
            | ((digest[offset + 2] & 0xFF) << 8)
            | (digest[offset + 3] & 0xFF);
 
-    // Calculate 10^digits without using pow
-    divisor = 1;
-    for (i = 0; i < digits; i++) {
-        divisor *= 10;
+    // Emulate 10^digits using repeated addition
+    uint32_t divisor = 1;
+    for (int i = 0; i < digits; i++) {
+        uint32_t temp = 0;
+        for (int j = 0; j < 10; j++) {
+            temp += divisor;
+        }
+        divisor = temp;
     }
 
-    // Apply modulo operation with 10^digits
-    return code % divisor;
+    // Apply modulo operation using repeated subtraction
+    while (code >= divisor) {
+        code -= divisor;
+    }
+
+    return code;
 }
 
 
