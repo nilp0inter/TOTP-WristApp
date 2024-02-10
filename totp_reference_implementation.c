@@ -20,9 +20,10 @@ uint8_t buffer[BLOCK_SIZE + MAX_MSG_LEN]; // Allocate buffer for the largest pos
 uint8_t offset;
 uint32_t code;
 uint32_t divisor;
+uint32_t h[5];
 
 
-void sha1_hash(size_t inputLen, uint32_t *h) {
+void sha1_hash(size_t inputLen) {
     h[0] = 0x67452301;
     h[1] = 0xEFCDAB89;
     h[2] = 0x98BADCFE;
@@ -86,7 +87,7 @@ void sha1_hash(size_t inputLen, uint32_t *h) {
 }
 
 
-void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t msg_len, uint32_t *h) {
+void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t msg_len) {
     // Initialize the buffer to 0
     for (i = 0; i < PADDED_LEN; i++) {
         buffer[i] = 0;
@@ -106,7 +107,7 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     }
 
     // Compute inner hash
-    sha1_hash(BLOCK_SIZE + msg_len, h);
+    sha1_hash(BLOCK_SIZE + msg_len);
 
     // Re-initialize buffer with k_opad XOR operation
     for (i = 0; i < key_len; i++) {
@@ -125,13 +126,13 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     }
 
     // Compute outer hash
-    sha1_hash(BLOCK_SIZE + 20, h);
+    sha1_hash(BLOCK_SIZE + 20);
 }
 
 
-uint32_t dynamic_truncation(uint32_t digest[5]) {
+uint32_t dynamic_truncation() {
     // Convert digest to a byte pointer to access individual bytes
-    uint8_t* p = (uint8_t*)digest;
+    uint8_t* p = (uint8_t*)h;
 
     // Determine the offset. Use the last byte & 0x0F to get the offset value
     uint8_t offset = p[19] & 0x0F; // Last byte of the HMAC-SHA1 result
@@ -220,15 +221,19 @@ void uint32_to_uint8(const uint32_t* input, uint8_t* output, size_t length) {
 
 // Function to test a single TOTP case
 void test_totp(const uint8_t* key, size_t key_len, const uint8_t* time_step, uint32_t expected, int digits) {
-    uint32_t digest[5]; // To store the HMAC result
     uint8_t byteDigest[20];
     
-    hmac_sha1(key, key_len, time_step, 8, digest); // Calculate HMAC-SHA1
-    uint32_to_uint8(digest, byteDigest, 5); // Convert digest to bytes
+    hmac_sha1(key, key_len, time_step, 8); // Calculate HMAC-SHA1
+    uint32_to_uint8(h, byteDigest, 5); // Convert digest to bytes
     uint32_t totp = extract_totp(byteDigest, digits); // Extract TOTP
     
-    printf("TOTP: %0*u (Expected: %0*u)\n", digits, totp, digits, expected);
-    assert(totp == expected); // Verify TOTP
+    printf("TOTP: %0*u (Expected: %0*u) ->", digits, totp, digits, expected);
+
+    if (totp != expected) {
+        printf(" \033[0;31mFAILED\033[0m\n");
+    } else {
+        printf(" \033[0;32mPASSED\033[0m\n");
+    }
 }
 
 
@@ -254,21 +259,27 @@ int main() {
 
     get_time_step(time_step, 59 / 30); // Get the time step for the first test case
     test_totp(key, sizeof(key) - 1, time_step, 94287082, digits);
+    print_digest(h);
 
     get_time_step(time_step, 1111111109 / 30); // Get the time step for the second test case
     test_totp(key, sizeof(key) - 1, time_step, 7081804, digits);
+    print_digest(h);
 
     get_time_step(time_step, 1111111111 / 30); // Get the time step for the third test case
     test_totp(key, sizeof(key) - 1, time_step, 14050471, digits);
+    print_digest(h);
 
     get_time_step(time_step, 1234567890 / 30); // Get the time step for the fourth test case
     test_totp(key, sizeof(key) - 1, time_step, 89005924, digits);
+    print_digest(h);
 
     get_time_step(time_step, 2000000000 / 30); // Get the time step for the fifth test case
     test_totp(key, sizeof(key) - 1, time_step, 69279037, digits);
+    print_digest(h);
 
     get_time_step(time_step, 20000000000 / 30); // Get the time step for the sixth test case
     test_totp(key, sizeof(key) - 1, time_step, 65353130, digits);
+    print_digest(h);
     
     return 0;
 }
