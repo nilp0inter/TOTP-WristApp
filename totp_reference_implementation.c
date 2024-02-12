@@ -13,11 +13,8 @@
 // Define the left rotate operation
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
-
-uint32_t a, b, c, d, e, f, k, temp;  // Store the temporary variables
-uint32_t w[16]; // Store the message schedule
+uint32_t a, b, c, d, e, f, k, temp, w_temp;  // Store the temporary variables
 uint32_t h[5];  // Store the hash result
-
 
 uint8_t j;
 int32_t i;  // XXX: Why this needs to be signed?
@@ -26,6 +23,10 @@ uint8_t buffer[BLOCK_SIZE + MAX_MSG_LEN]; // Shared buffer for HMAC-SHA1 and SHA
 uint8_t offset; // Offset for dynamic truncation and totp extraction
 uint32_t code;  // Final TOTP code
 
+inline uint32_t address_w(uint8_t j, uint8_t i) {
+    return (uint32_t)buffer[j + i*4] << 24 | (uint32_t)buffer[j + i*4+1] << 16 |
+           (uint32_t)buffer[j + i*4+2] << 8 | (uint32_t)buffer[j + i*4+3];
+}
 
 void sha1_hash(size_t inputLen) {
     h[0] = 0x67452301;
@@ -44,13 +45,6 @@ void sha1_hash(size_t inputLen) {
 
     // Process each block
     for (j = 0; j < PADDED_LEN; j += 64) {
-        for (i = 0; i < 16; i++) {
-            // TODO: w can be removed and use buffer directly
-            /* printf("w[%d] <- b[%d] | b[%d] | b[%d] | b[%d]\n", i, j + i*4, j + i*4+1, j + i*4+2, j + i*4+3); */
-            w[i] = (uint32_t)buffer[j + i*4] << 24 | (uint32_t)buffer[j + i*4+1] << 16 |
-                   (uint32_t)buffer[j + i*4+2] << 8 | (uint32_t)buffer[j + i*4+3];
-        }
-
         a = h[0];
         b = h[1];
         c = h[2];
@@ -73,10 +67,16 @@ void sha1_hash(size_t inputLen) {
             }
 
             if (i >= 16) {
-                w[i%16] = LEFTROTATE(w[(i+13)%16] ^ w[(i+8)%16] ^ w[(i+2)%16] ^ w[i%16], 1);
+                w_temp = LEFTROTATE(address_w(j, (i+13)%16) ^ address_w(j, (i+8)%16) ^ address_w(j, (i+2)%16) ^ address_w(j, i%16), 1);
+                buffer[j + (i%16)*4] = (uint8_t)(w_temp >> 24);
+                buffer[j + (i%16)*4+1] = (uint8_t)(w_temp >> 16);
+                buffer[j + (i%16)*4+2] = (uint8_t)(w_temp >> 8);
+                buffer[j + (i%16)*4+3] = (uint8_t)(w_temp);
+            } else {
+                w_temp = address_w(j, i%16);
             }
 
-            temp = LEFTROTATE(a, 5) + f + e + k + w[i%16];
+            temp = LEFTROTATE(a, 5) + f + e + k + w_temp;
             e = d;
             d = c;
             c = LEFTROTATE(b, 30);
@@ -115,6 +115,11 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     // Compute inner hash
     sha1_hash(BLOCK_SIZE + msg_len);
 
+    // Re-initialize buffer to 0
+    for (i = 0; i < PADDED_LEN; i++) {
+        buffer[i] = 0;
+    }
+    
     // Re-initialize buffer with k_opad XOR operation
     for (i = 0; i < key_len; i++) {
         buffer[i] = key[i] ^ 0x5C;
