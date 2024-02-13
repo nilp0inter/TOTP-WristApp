@@ -147,38 +147,32 @@ RESETCOUNTDOWN
                 clr     BTNFLAGS                  ; Stop blinking
                 lda     #30
                 sta     COUNTDOWN
-                lda     TCOUNT
-                add     #1
-                sta     TCOUNT
-                lda     TCOUNT+1
+                sec                               ; Set the carry flag
+                ldx     #4                        ; And add it to the time
+INCCOUNT        decx
+                lda     TCOUNT,X
                 adc     #0
-                sta     TCOUNT+1
-                lda     TCOUNT+2
-                adc     #0
-                sta     TCOUNT+2
-                lda     TCOUNT+3
-                adc     #0
-                sta     TCOUNT+3
-
+                sta     TCOUNT,X
+                bne     INCCOUNT
                 lda     FLAGBYTE                    ; Change the demo code
                 eor     #1
                 sta     FLAGBYTE
                 rts
 
 ; DEBUGUNIX
-;                 lda     TCOUNT+3
+;                 lda     TCOUNT
 ;                 bsr     GETBYTE
 ;                 jsr     PUTTOP12
 
-;                 lda     TCOUNT+2
+;                 lda     TCOUNT+1
 ;                 bsr     GETBYTE
 ;                 jsr     PUTTOP34
 
-;                 lda     TCOUNT+1
+;                 lda     TCOUNT+2
 ;                 bsr     GETBYTE
 ;                 jsr     PUTTOP56
 
-;                 lda     TCOUNT
+;                 lda     TCOUNT+3
 ;                 bsr     GETBYTE
 ;                 jsr     PUTMID12
 

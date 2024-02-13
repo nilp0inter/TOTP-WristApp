@@ -26,9 +26,10 @@ def tcount():
 
     # Optionally, if you need the timestamp as an integer (e.g., for Unix timestamp)
     timestamp = int(math.floor(now.timestamp()/30))
-    hex_bytes = int_to_hex_bytes(timestamp)
+    time_step = int_to_hex_bytes(timestamp)
 
-    return f"TCOUNT    db   ${hex_bytes[3]},${hex_bytes[2]},${hex_bytes[1]},${hex_bytes[0]}"
+    print(f"{time_step=}", file=sys.stderr)
+    return f"TCOUNT    db   ${time_step[0]},${time_step[1]},${time_step[2]},${time_step[3]}"
 
 
 SYMBOLS = {
