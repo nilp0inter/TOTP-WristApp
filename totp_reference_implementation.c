@@ -5,100 +5,104 @@
 #include <time.h>
 #include <assert.h>
 
-
-#define MAX_MSG_LEN 64 // Maximum message length as a constant
 #define BLOCK_SIZE 64 // Block size for SHA-1
-#define PADDED_LEN 128 // Hardcoded padded length
 
 // Define the left rotate operation
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
+// ADDRESSW is used to emulate the Wt array in the SHA-1 algorithm in place
+#define ADDRESSW(i) ((uint32_t)buffer[i*4] << 24 | (uint32_t)buffer[i*4+1] << 16 | \
+                     (uint32_t)buffer[i*4+2] << 8 | (uint32_t)buffer[i*4+3])
+
 uint32_t a, b, c, d, e, f, k, temp;  // Store the temporary variables
 uint32_t h[5];  // Store the hash result
+uint32_t h2[5];  // Store the hash result
 
 uint8_t j;
 int32_t i;  // XXX: Why this needs to be signed?
 
-uint8_t buffer[BLOCK_SIZE + MAX_MSG_LEN]; // Shared buffer for HMAC-SHA1 and SHA-1
+uint8_t buffer[BLOCK_SIZE]; // Shared buffer for HMAC-SHA1 and SHA-1
 uint8_t offset; // Offset for dynamic truncation and totp extraction
 uint32_t code;  // Final TOTP code
 
-inline uint32_t address_w(uint8_t j, uint8_t i) {
-    return (uint32_t)buffer[j + i*4] << 24 | (uint32_t)buffer[j + i*4+1] << 16 |
-           (uint32_t)buffer[j + i*4+2] << 8 | (uint32_t)buffer[j + i*4+3];
+
+void init_buffer() {
+    for (i = 0; i < BLOCK_SIZE; i++) {
+        buffer[i] = 0;
+    }
 }
 
-void sha1_hash(size_t inputLen) {
+void pad_buffer(size_t inputLen) {
+    buffer[inputLen] = 0x80; // Append 0x80 to the end of the message
+
+    // Append the length in bits at the end of the last block
+    for (i = 0; i < 8; i++) {
+        buffer[BLOCK_SIZE - 8 + i] = (uint8_t)(((BLOCK_SIZE + inputLen) * 8) >> (8 * (7 - i)));
+    }
+}
+
+void sha1_init() {
     h[0] = 0x67452301;
     h[1] = 0xEFCDAB89;
     h[2] = 0x98BADCFE;
     h[3] = 0x10325476;
     h[4] = 0xC3D2E1F0;
+}
 
-    // Append 0x80 to the end of the message
-    buffer[inputLen] = 0x80;
+void sha1_process_block() {
+    a = h[0];
+    b = h[1];
+    c = h[2];
+    d = h[3];
+    e = h[4];
 
-    // Append the length in bits at the end of the last block
-    for (i = 0; i < 8; i++) {
-        buffer[PADDED_LEN - 8 + i] = (uint8_t)((inputLen * 8) >> (8 * (7 - i)));
-    }
-
-    // Process each block
-    for (j = 0; j < PADDED_LEN; j += 64) {
-        a = h[0];
-        b = h[1];
-        c = h[2];
-        d = h[3];
-        e = h[4];
-
-        for (i = 0; i < 80; i++) {
-            if (i < 20) {
-                f = (b & c) | ((~b) & d);
-                k = 0x5A827999;
-            } else if (i < 40) {
-                f = b ^ c ^ d;
-                k = 0x6ED9EBA1;
-            } else if (i < 60) {
-                f = (b & c) | (b & d) | (c & d);
-                k = 0x8F1BBCDC;
-            } else {
-                f = b ^ c ^ d;
-                k = 0xCA62C1D6;
-            }
-
-            if (i >= 16) {
-                temp = LEFTROTATE(address_w(j, (i+13)%16) ^ address_w(j, (i+8)%16) ^ address_w(j, (i+2)%16) ^ address_w(j, i%16), 1);
-                buffer[j + (i%16)*4] = (uint8_t)(temp >> 24);
-                buffer[j + (i%16)*4+1] = (uint8_t)(temp >> 16);
-                buffer[j + (i%16)*4+2] = (uint8_t)(temp >> 8);
-                buffer[j + (i%16)*4+3] = (uint8_t)(temp);
-            } else {
-                temp = address_w(j, i%16);
-            }
-
-            temp += LEFTROTATE(a, 5) + f + e + k;
-            e = d;
-            d = c;
-            c = LEFTROTATE(b, 30);
-            b = a;
-            a = temp;
+    for (i = 0; i < 80; i++) {
+        if (i < 20) {
+            f = (b & c) | ((~b) & d);
+            k = 0x5A827999;
+        } else if (i < 40) {
+            f = b ^ c ^ d;
+            k = 0x6ED9EBA1;
+        } else if (i < 60) {
+            f = (b & c) | (b & d) | (c & d);
+            k = 0x8F1BBCDC;
+        } else {
+            f = b ^ c ^ d;
+            k = 0xCA62C1D6;
         }
 
-        h[0] += a;
-        h[1] += b;
-        h[2] += c;
-        h[3] += d;
-        h[4] += e;
+        if (i >= 16) {
+            temp = LEFTROTATE(ADDRESSW((i+13)%16) ^ ADDRESSW((i+8)%16) ^ ADDRESSW((i+2)%16) ^ ADDRESSW(i%16), 1);
+            buffer[0 + (i%16)*4] = (uint8_t)(temp >> 24);
+            buffer[0 + (i%16)*4+1] = (uint8_t)(temp >> 16);
+            buffer[0 + (i%16)*4+2] = (uint8_t)(temp >> 8);
+            buffer[0 + (i%16)*4+3] = (uint8_t)(temp);
+        } else {
+            temp = ADDRESSW(i%16);
+        }
+
+        temp += LEFTROTATE(a, 5) + f + e + k;
+        e = d;
+        d = c;
+        c = LEFTROTATE(b, 30);
+        b = a;
+        a = temp;
     }
+
+    h[0] += a;
+    h[1] += b;
+    h[2] += c;
+    h[3] += d;
+    h[4] += e;
 }
 
 
 void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t msg_len) {
-    // Initialize the buffer to 0
-    for (i = 0; i < PADDED_LEN; i++) {
-        buffer[i] = 0;
-    }
 
+    //
+    // This is the first pass of the SHA-1 algorithm
+    //
+    init_buffer();
     // Initialize buffer with k_ipad XOR operation
     for (i = 0; i < key_len; i++) {
         buffer[i] = key[i] ^ 0x36;
@@ -106,20 +110,27 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     for (; i < BLOCK_SIZE; i++) {
         buffer[i] = 0x36;
     }
+    sha1_init();
+    sha1_process_block();
 
+    init_buffer();
     // Append message to the buffer
     for (i = 0; i < msg_len; i++) {
-        buffer[BLOCK_SIZE + i] = msg[i];
+        buffer[i] = msg[i];
+    }
+    pad_buffer(msg_len);
+    sha1_process_block();
+
+    // Store the inner hash result so it can be used later
+    // by the outer hash operation
+    for (i = 0; i < 5; i++) {
+        h2[i] = h[i];
     }
 
-    // Compute inner hash
-    sha1_hash(BLOCK_SIZE + msg_len);
-
-    // Re-initialize buffer to 0
-    for (i = 0; i < PADDED_LEN; i++) {
-        buffer[i] = 0;
-    }
-    
+    //
+    // This is the second pass of the SHA-1 algorithm
+    //
+    init_buffer();
     // Re-initialize buffer with k_opad XOR operation
     for (i = 0; i < key_len; i++) {
         buffer[i] = key[i] ^ 0x5C;
@@ -127,17 +138,19 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     for (; i < BLOCK_SIZE; i++) {
         buffer[i] = 0x5C;
     }
+    sha1_init();
+    sha1_process_block();
 
+    init_buffer();
     // Append inner hash result to buffer
     for (i = 0; i < 5; i++) {
-        buffer[BLOCK_SIZE + i * 4] = (uint8_t)(h[i] >> 24);
-        buffer[BLOCK_SIZE + i * 4 + 1] = (uint8_t)(h[i] >> 16);
-        buffer[BLOCK_SIZE + i * 4 + 2] = (uint8_t)(h[i] >> 8);
-        buffer[BLOCK_SIZE + i * 4 + 3] = (uint8_t)(h[i]);
+        buffer[i * 4] = (uint8_t)(h2[i] >> 24);
+        buffer[i * 4 + 1] = (uint8_t)(h2[i] >> 16);
+        buffer[i * 4 + 2] = (uint8_t)(h2[i] >> 8);
+        buffer[i * 4 + 3] = (uint8_t)(h2[i]);
     }
-
-    // Compute outer hash
-    sha1_hash(BLOCK_SIZE + 20);
+    pad_buffer(20);
+    sha1_process_block();
 }
 
 
