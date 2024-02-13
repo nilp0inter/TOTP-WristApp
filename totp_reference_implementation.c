@@ -22,7 +22,6 @@ uint8_t j;
 int32_t i;  // XXX: Why this needs to be signed?
 
 uint8_t buffer[BLOCK_SIZE]; // Shared buffer for HMAC-SHA1 and SHA-1
-uint8_t offset; // Offset for dynamic truncation and totp extraction
 uint32_t code;  // Final TOTP code
 
 
@@ -159,13 +158,13 @@ uint32_t dynamic_truncation() {
     uint8_t* p = (uint8_t*)h;
 
     // Determine the offset. Use the last byte & 0x0F to get the offset value
-    uint8_t offset = p[19] & 0x0F; // Last byte of the HMAC-SHA1 result
+    j = p[19] & 0x0F; // Last byte of the HMAC-SHA1 result
 
     // Build the truncatedHash from the bytes, ensuring big-endian order
-    uint32_t truncatedHash = ((uint32_t)p[offset] & 0x7F) << 24 |
-                             (uint32_t)p[offset + 1] << 16 |
-                             (uint32_t)p[offset + 2] << 8 |
-                             (uint32_t)p[offset + 3];
+    uint32_t truncatedHash = ((uint32_t)p[j] & 0x7F) << 24 |
+                             (uint32_t)p[j + 1] << 16 |
+                             (uint32_t)p[j + 2] << 8 |
+                             (uint32_t)p[j + 3];
 
     return truncatedHash;
 }
@@ -203,13 +202,13 @@ void get_time_step(uint8_t time_step[8], uint64_t timestep) {
 
 uint32_t extract_totp(const uint8_t* digest, int digits) {
     // Offset is the low 4 bits of the last byte of the digest
-    offset = digest[19] & 0x0F;
+    j = digest[19] & 0x0F;
 
     // Extract the dynamic binary code
-    code = ((digest[offset] & 0x7F) << 24)
-           | ((digest[offset + 1] & 0xFF) << 16)
-           | ((digest[offset + 2] & 0xFF) << 8)
-           | (digest[offset + 3] & 0xFF);
+    code = ((digest[j] & 0x7F) << 24)
+           | ((digest[j + 1] & 0xFF) << 16)
+           | ((digest[j + 2] & 0xFF) << 8)
+           | (digest[j + 3] & 0xFF);
 
     // Emulate 10^digits using repeated addition (k is the divisor)
     k = 1;
