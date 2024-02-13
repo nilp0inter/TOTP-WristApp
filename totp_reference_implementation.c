@@ -13,7 +13,7 @@
 // Define the left rotate operation
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
-uint32_t a, b, c, d, e, f, k, temp, w_temp;  // Store the temporary variables
+uint32_t a, b, c, d, e, f, k, temp;  // Store the temporary variables
 uint32_t h[5];  // Store the hash result
 
 uint8_t j;
@@ -67,16 +67,16 @@ void sha1_hash(size_t inputLen) {
             }
 
             if (i >= 16) {
-                w_temp = LEFTROTATE(address_w(j, (i+13)%16) ^ address_w(j, (i+8)%16) ^ address_w(j, (i+2)%16) ^ address_w(j, i%16), 1);
-                buffer[j + (i%16)*4] = (uint8_t)(w_temp >> 24);
-                buffer[j + (i%16)*4+1] = (uint8_t)(w_temp >> 16);
-                buffer[j + (i%16)*4+2] = (uint8_t)(w_temp >> 8);
-                buffer[j + (i%16)*4+3] = (uint8_t)(w_temp);
+                temp = LEFTROTATE(address_w(j, (i+13)%16) ^ address_w(j, (i+8)%16) ^ address_w(j, (i+2)%16) ^ address_w(j, i%16), 1);
+                buffer[j + (i%16)*4] = (uint8_t)(temp >> 24);
+                buffer[j + (i%16)*4+1] = (uint8_t)(temp >> 16);
+                buffer[j + (i%16)*4+2] = (uint8_t)(temp >> 8);
+                buffer[j + (i%16)*4+3] = (uint8_t)(temp);
             } else {
-                w_temp = address_w(j, i%16);
+                temp = address_w(j, i%16);
             }
 
-            temp = LEFTROTATE(a, 5) + f + e + k + w_temp;
+            temp += LEFTROTATE(a, 5) + f + e + k;
             e = d;
             d = c;
             c = LEFTROTATE(b, 30);
