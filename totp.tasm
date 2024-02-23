@@ -7,6 +7,16 @@
 ;
 ;TIP:  Download your watch faster:  Download a WristApp once, then do not send it again.  It stays in the watch!
 INCLUDE         "WRISTAPP.I"
+
+;
+; Note: apparantly we can get away by using the following segments
+; $043a-$0466 (44 bytes)
+;   - BUF_PHONENUM ; 12 bytes
+;   - EXTRACTBUF   ; 32 bytes
+; $04d2
+;   - MSGBUF       ; 32 bytes
+;
+
 ;
 ; (1) Program specific constants
 ;
