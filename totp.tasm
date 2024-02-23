@@ -10,10 +10,10 @@ INCLUDE         "WRISTAPP.I"
 
 ;
 ; Note: apparantly we can get away by using the following segments
-; $043a-$0466 (44 bytes)
+; $043a-$0466 (44 bytes)  - We use it for CODE (4), H_0-H_4 (5*4) and H2_0-H2_4 (5*4) = 44 bytes
 ;   - BUF_PHONENUM ; 12 bytes
 ;   - EXTRACTBUF   ; 32 bytes
-; $04d2
+; $04d2                   - We use it for V_A-V_F (6*4), V_K (4), V_TEMP (4) = 32 bytes
 ;   - MSGBUF       ; 32 bytes
 ;
 
