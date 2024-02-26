@@ -1,3 +1,8 @@
+/*
+ * Glossary:
+ * - ITTS: In the target system.
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -10,8 +15,8 @@
 // Define the left rotate operation
 #define LEFTROTATE(x, c) (((x) << (c)) | ((x) >> (32 - (c))))
 
-// ADDRESSW is used to emulate the Wt array in the SHA-1 algorithm in place
-#define ADDRESSW(i) ((uint32_t)buffer[i*4] << 24 | (uint32_t)buffer[i*4+1] << 16 | \
+// BIGENDIAN_ITH_32BIT is used to emulate the Wt array in the SHA-1 algorithm in place
+#define BIGENDIAN_ITH_32BIT(i) ((uint32_t)buffer[i*4] << 24 | (uint32_t)buffer[i*4+1] << 16 | \
                      (uint32_t)buffer[i*4+2] << 8 | (uint32_t)buffer[i*4+3])
 
 uint32_t a, b, c, d, e, f, k, temp;  // Store the temporary variables
@@ -41,6 +46,8 @@ void pad_buffer(size_t inputLen) {
 }
 
 void sha1_init() {
+    // ITTS h is contiguous in memory, and so are the constant block,
+    // we can copy 20 bytes from the constant.
     h[0] = 0x67452301;
     h[1] = 0xEFCDAB89;
     h[2] = 0x98BADCFE;
@@ -49,6 +56,8 @@ void sha1_init() {
 }
 
 void sha1_process_block() {
+    // ITTS a-e are contiguous in memory, and so are
+    // the buffer elements, we can copy 20 bytes from *a to *h.
     a = h[0];
     b = h[1];
     c = h[2];
@@ -57,32 +66,86 @@ void sha1_process_block() {
 
     for (i = 0; i < 80; i++) {
         if (i < 20) {
+            /*
+             * Decomposition:
+             * f = (b & c)
+             * temp = ~b
+             * temp = temp & d
+             * f = f | temp
+             */
             f = (b & c) | ((~b) & d);
             k = 0x5A827999;
         } else if (i < 40) {
+            /*
+             * Decomposition:
+             * f = b ^ c
+             * f = f ^ d
+             */
             f = b ^ c ^ d;
             k = 0x6ED9EBA1;
         } else if (i < 60) {
+            /*
+             * Decomposition:
+             * f = b & c
+             * temp = b & d
+             * f = f | temp
+             * temp = c & d
+             * f = f | temp
+             */
             f = (b & c) | (b & d) | (c & d);
             k = 0x8F1BBCDC;
         } else {
+            /*
+             * Decomposition:
+             * f = b ^ c
+             * f = f ^ d
+             */
             f = b ^ c ^ d;
             k = 0xCA62C1D6;
         }
 
         if (i >= 16) {
-            temp = LEFTROTATE(ADDRESSW((i+13)%16) ^ ADDRESSW((i+8)%16) ^ ADDRESSW((i+2)%16) ^ ADDRESSW(i%16), 1);
-            buffer[0 + (i%16)*4] = (uint8_t)(temp >> 24);
-            buffer[0 + (i%16)*4+1] = (uint8_t)(temp >> 16);
-            buffer[0 + (i%16)*4+2] = (uint8_t)(temp >> 8);
-            buffer[0 + (i%16)*4+3] = (uint8_t)(temp);
+            /*
+             * Decomposition:
+             * temp = buffer[i+13] ^ buffer[i+8]
+             * temp = temp ^ buffer[i+2]
+             * temp = temp ^ buffer[i]
+             * temp = temp << 1
+             */
+            printf("i: %d; i+13%16: %d; i+8%16: %d; i+2%16: %d; i%16: %d\n", i, (i+13)%16, (i+8)%16, (i+2)%16, i%16);
+            temp = LEFTROTATE( BIGENDIAN_ITH_32BIT((i+13)%16)
+                             ^ BIGENDIAN_ITH_32BIT((i+8)%16)
+                             ^ BIGENDIAN_ITH_32BIT((i+2)%16)
+                             ^ BIGENDIAN_ITH_32BIT((i+0)%16), 1);
+
+            // ITTS this assignment can be done by just copying temp to buffer.
+            // The *4 part wouldn't be neccessary if we address buffer as uint32_t.
+            // Decomposition:
+            // buffer[i%16*4] = temp;
+            buffer[(i%16)*4+0] = (uint8_t)(temp >> 24);
+            buffer[(i%16)*4+1] = (uint8_t)(temp >> 16);
+            buffer[(i%16)*4+2] = (uint8_t)(temp >> 8);
+            buffer[(i%16)*4+3] = (uint8_t)(temp);
+            /* *((uint32_t*)&buffer[i%16*4]) = temp; */
         } else {
-            temp = ADDRESSW(i%16);
+            temp = BIGENDIAN_ITH_32BIT(i%16);
         }
 
+        /*
+         * Decomposition:
+         * temp1 = a << 5
+         * temp1 = temp1 + f
+         * temp1 = temp1 + e
+         * temp1 = temp1 + k
+         * temp = temp + temp1
+         */
         temp += LEFTROTATE(a, 5) + f + e + k;
         e = d;
         d = c;
+        /*
+         * Decomposition:
+         * c = b << 30
+         */
         c = LEFTROTATE(b, 30);
         b = a;
         a = temp;
@@ -104,10 +167,10 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     init_buffer();
     // Initialize buffer with k_ipad XOR operation
     for (i = 0; i < key_len; i++) {
-        buffer[i] = key[i] ^ 0x36;
+        buffer[i] = key[i];
     }
-    for (; i < BLOCK_SIZE; i++) {
-        buffer[i] = 0x36;
+    for (i = 0; i < BLOCK_SIZE; i++) {
+        buffer[i] = buffer[i] ^ 0x36;
     }
     sha1_init();
     sha1_process_block();
@@ -132,10 +195,10 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     init_buffer();
     // Re-initialize buffer with k_opad XOR operation
     for (i = 0; i < key_len; i++) {
-        buffer[i] = key[i] ^ 0x5C;
+        buffer[i] = key[i];
     }
-    for (; i < BLOCK_SIZE; i++) {
-        buffer[i] = 0x5C;
+    for (i = 0; i < BLOCK_SIZE; i++) {
+        buffer[i] = buffer[i] ^ 0x5C;
     }
     sha1_init();
     sha1_process_block();
