@@ -28,9 +28,10 @@ INCLUDE         "WRISTAPP.I"
 ;           intermediate steps of SHA1 calculations.
 ;       - V_K (4 bytes): Additional variable for SHA1 computation.
 ;       - V_TEMP (4 bytes): Temporary storage during calculations.
+;       - V_TEMP2 (4 bytes): Additional temporary storage during calculations.
 ;
-;     Note: Of the allocated 40 bytes, 32 are used for TOTP variables (V_A-V_F,
-;     V_K, V_TEMP) during SHA1 calculations. The original variables
+;     Note: Of the allocated 40 bytes, 36 are used for TOTP variables (V_A-V_F,
+;     V_K, V_TEMP, V_TEMP2) during SHA1 calculations. The original variables
 ;     (BUF_PHONENUM, EXTRACTBUF) are key for EEPROM data recovery outside these
 ;     computations.
 ;
@@ -114,17 +115,18 @@ S8_GITHUB:       timex   " GITHUB "
 ; calculate the absolute address to be used in different parts of the self
 ; modifying code.
 ;
-LOADBYTE_ADDR_HI    EQU     (LOADBYTE & $FF00) / 0x0100
-LOADBYTE_ADDR_LO    EQU     LOADBYTE & $00FF
-; BINOP_RHS_ADDR_HI   EQU     (BINOP_RHS & $FF00) / 0x0100
-; BINOP_RHS_ADDR_LO   EQU     BINOP_RHS & $00FF
-; BINOP_DST_ADDR_HI   EQU     (BINOP_DST & $FF00) / 0x0100
-; BINOP_DST_ADDR_LO   EQU     BINOP_DST & $00FF
+LOADBYTE_ADDRHI     EQU     (LOADBYTE & $FF00) / 0x0100
+LOADBYTE_ADDRLO     EQU     (LOADBYTE & $00FF)
 
-RHS_ADDR            EQU     TCOUNT
-LHS_ADDR            EQU     *
-LHS                 db      $aa,$aa,$aa,$aa
-DST_ADDR            EQU     TCOUNT
+OP_RHS_ADDRHI       EQU     (OP_RHS & $FF00) / 0x0100
+OP_RHS_ADDRLO       EQU     (OP_RHS & $00FF)
+OP_DST_ADDRHI       EQU     (OP_DST & $FF00) / 0x0100
+OP_DST_ADDRLO       EQU     (OP_DST & $00FF)
+
+ADD_LHS_ADDRHI      EQU     (ADD_LHS & $FF00) / 0x0100
+ADD_LHS_ADDRLO      EQU     (ADD_LHS & $00FF)
+
+ONE                 db      $aa,$aa,$00,$ff
 
 ; BUFFER:             db      $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
@@ -196,13 +198,27 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 
 ; DELETEENTRY     jmp     SAYHOLDTODELETE
 
-TESTSTUFF       bsr     XOR32
+TESTSTUFF       lda     #(TCOUNT & 0xff00) / 0x0100
+                sta     OP_RHS
+                sta     OP_DST
+                lda     #(TCOUNT & 0x00ff)
+                sta     OP_RHS+1
+                sta     OP_DST+1
+                lda     #(ONE & 0xff00) / 0x0100
+                sta     XOR_LHS
+                ; sta     OP_RHS
+                lda     #(ONE & 0x00ff)
+                sta     XOR_LHS+1
+                ; sta     OP_RHS+1
+                ; lda     #$69
+                ; sta     SET_VALUE
+                bsr     XOROP
                 bra     DEBUGUNIX
 
-FIRSTBYTE:      lda     #LOADBYTE_ADDR_LO
+FIRSTBYTE:      lda     #LOADBYTE_ADDRLO
                 sub     OFFSET
                 sta     LOADBYTE+1
-                lda     #LOADBYTE_ADDR_HI
+                lda     #LOADBYTE_ADDRHI
                 sbc     #0
                 sta     LOADBYTE
                 clr     OFFSET
@@ -238,6 +254,118 @@ DEBUGUNIX:      jsr     CLEARALL                ; Clear the display
 
                 bsr     NEXTBYTE
                 jmp     PUTMID12
+
+ADDOP:
+                lda     #(ADD_CB-OP_CB)-1
+                sta     OP_CB
+                clc
+                bra     OPERATION
+
+SUBOP:
+                lda     #(SUB_CB-OP_CB)-1
+                sta     OP_CB
+                clc
+                bra     OPERATION
+
+COPYOP:
+                lda     #(OP_SAVE-OP_CB)-1
+                sta     OP_CB
+                bra     OPERATION
+
+ANDOP:
+                lda     #(AND_CB-OP_CB)-1
+                sta     OP_CB
+                bra     OPERATION
+
+NOTOP:
+                lda     #(NOT_CB-OP_CB)-1
+                sta     OP_CB
+                bra     OPERATION
+
+OROP:
+                lda     #(OR_CB-OP_CB)-1
+                sta     OP_CB
+                bra     OPERATION
+
+SETOP:
+                lda     #(SET_CB-OP_CB)-1
+                sta     OP_CB
+                bra     OPERATION
+
+XOROP:
+                lda     #(XOR_CB-OP_CB)-1
+                sta     OP_CB
+                bra     OPERATION
+
+ROLOP:
+                lda     OP_IDX
+                deca
+                sta     ROLOP_IDX
+                lda     OP_DST
+                sta     ROLOP_EOR
+                sta     ROLOP_STA
+                lda     OP_DST+1
+                sta     ROLOP_EOR+1
+                sta     ROLOP_STA+1
+                lda     #(ROL_CB-OP_CB)-1
+                sta     OP_CB
+                clc
+                bsr     OPERATION
+                bcc     ROLOP_END
+                ; fall into ROLOP_SET1
+ROLOP_SET1      lda     #1
+ROLOP_IDX       EQU     *+1
+                ldx     #3
+ROLOP_EOR       EQU     *+1
+                eor     $4000,X
+ROLOP_STA       EQU     *+1
+                sta     $4000,X
+ROLOP_END:      rts
+
+OPERATION:
+OP_IDX          EQU     *+1
+                ldx     #4
+OP_REPEAT:      decx
+OP_RHS          EQU     *+1
+                lda     $4000,X
+OP_CB           EQU     *+1
+                bsr     OP_SAVE
+OP_DST          EQU     *+1
+OP_SAVE:        sta     $4000,X
+                tstx
+                bne     OP_REPEAT
+                rts
+
+ADD_LHS         EQU     *+1
+ADD_CB:         adc     $4000,X
+                rts
+
+SUB_LHS         EQU     *+1
+SUB_CB:         sbc     $4000,X
+                rts
+
+AND_LHS         EQU     *+1
+AND_CB:         and     $4000,X
+                rts
+
+FF_ADDR         db      $ff
+NOT_CB:         eor     FF_ADDR
+                rts
+
+OR_LHS          EQU     *+1
+OR_CB:          ora     $4000,X
+                rts
+
+ROL_CB:         rola
+                rts
+
+SET_VALUE       EQU     *+1
+SET_CB:         lda     #$69
+                rts
+
+XOR_LHS         EQU     *+1
+XOR_CB:         eor     $4000,X
+                rts
 
 ; XOR32:
 ;                 ldx     #4
@@ -390,6 +518,5 @@ MAIN:
                 lda     #30
                 sta     COUNTDOWN
                 rts
-
 
 ; vim: set expandtab ts=4 sw=4 filetype=asm:
