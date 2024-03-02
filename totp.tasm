@@ -9,15 +9,68 @@
 INCLUDE         "WRISTAPP.I"
 
 ;
-; Note: apparantly we can get away by using the following segments
-; $043a-$0466 (44 bytes)  - We use it for CODE (4), H_0-H_4 (5*4) and H2_0-H2_4 (5*4) = 44 bytes
-;   - BUF_PHONENUM ; 12 bytes
-;   - EXTRACTBUF   ; 28 bytes  (documentation says 32 bytes, but if I clear the
-;                               32nd byte, the first alarm hours field is
-;                               cleared as well)
-;   I clear the 32nd byte, the first alarm hours field is cleared as well
-; $04d2                   - We use it for V_A-V_F (6*4), V_K (4), V_TEMP (4) = 32 bytes
-;   - MSGBUF       ; 32 bytes;
+; Memory Segments Utilization for TOTP Calculator SHA1 Calculations
+; -----------------------------------------------------------------
+; The memory segments listed below are leveraged during the SHA1 hash
+; calculations for the TOTP calculator. These segments are temporarily
+; repurposed to accommodate variables specific to the TOTP calculation process,
+; alongside their original intended usage.
+;
+; Segment $043a-$0462 (40 bytes)
+;   - Original Usage:
+;       - BUF_PHONENUM (12 bytes): Initially reserved for phone number storage.
+;       - EXTRACTBUF (28 bytes): Allocated for data extraction. Documentation
+;           discrepancies note it as 32 or 31 bytes. However, practical use
+;           determines it effectively as 31 bytes since clearing the 32nd byte
+;           also clears the first alarm hours field.
+;   - TOTP Variables:
+;       - V_A to V_F (6 variables * 4 bytes each): Variables used in
+;           intermediate steps of SHA1 calculations.
+;       - V_K (4 bytes): Additional variable for SHA1 computation.
+;       - V_TEMP (4 bytes): Temporary storage during calculations.
+;
+;     Note: Of the allocated 40 bytes, 32 are used for TOTP variables (V_A-V_F,
+;     V_K, V_TEMP) during SHA1 calculations. The original variables
+;     (BUF_PHONENUM, EXTRACTBUF) are key for EEPROM data recovery outside these
+;     computations.
+;
+; Segment $04d2 (32 bytes)
+;   - Original Usage:
+;       - MSGBUF (32 bytes): Reserved for message buffering.
+;         Note: No adverse effects observed when clearing up to 40 bytes,
+;         suggesting some flexibility in the original design.
+;   - TOTP Variables:
+;       - H_0 to H_4 (5 variables * 4 bytes each): Variables for storing
+;           intermediate hash values.
+;       - H2_0 to H2_4 (5 variables * 4 bytes each): Additional variables for
+;           hash computations, used in the HMAC-SHA1 algorithm.
+;     Note: Exactly 40 bytes are used for these TOTP variables, fully utilizing
+;     the segment during the SHA1 hash calculation phase.
+;
+; This repurposing of memory segments allows for efficient use of available
+; resources for TOTP SHA1 hash calculations without interfering with the
+; original intended uses of these memory areas.
+;
+
+V_A                 EQU     $043a
+V_B                 EQU     $043e
+V_C                 EQU     $0442
+V_D                 EQU     $0446
+V_E                 EQU     $044a
+V_F                 EQU     $044e
+V_K                 EQU     $0452
+V_TEMP              EQU     $0456
+
+H_0                 EQU     $04d2
+H_1                 EQU     $04d6
+H_2                 EQU     $04da
+H_3                 EQU     $04de
+H_4                 EQU     $04e2
+H2_0                EQU     $04e6
+H2_1                EQU     $04ea
+H2_2                EQU     $04ee
+H2_3                EQU     $04f2
+H2_4                EQU     $04f6
 
 ;
 ; (1) Program specific constants
@@ -60,54 +113,7 @@ L0123:          jmp     HANDLE_STATE0
 S6_SECS:         timex6  "   SEC"
 S6_TOTP:         timex6  " TOTP "
 S8_GITHUB:       timex   " GITHUB "
-SHA1_INIT_H0:       db      $67,$45,$23,$01
-SHA1_INIT_H1:       db      $EF,$CD,$AB,$89
-SHA1_INIT_H2:       db      $98,$BA,$DC,$FE
-SHA1_INIT_H3:       db      $10,$32,$54,$76
-SHA1_INIT_H4:       db      $C3,$D2,$E1,$F0
-SHA1_K0:            db      $5A,$82,$79,$99
-SHA1_K1:            db      $6E,$D9,$EB,$A1
-SHA1_K2:            db      $8F,$1B,$BC,$DC
-SHA1_K3:            db      $CA,$62,$C1,$D6
-H_0:                db      $00,$00,$00,$00
-H_1:                db      $00,$00,$00,$00
-H_2:                db      $00,$00,$00,$00
-H_3:                db      $00,$00,$00,$00
-H_4:                db      $00,$00,$00,$00
-H2_0:               db      $00,$00,$00,$00
-H2_1:               db      $00,$00,$00,$00
-H2_2:               db      $00,$00,$00,$00
-H2_3:               db      $00,$00,$00,$00
-H2_4:               db      $00,$00,$00,$00
-V_A:                db      $00,$00,$00,$00
-V_B:                db      $00,$00,$00,$00
-V_C:                db      $00,$00,$00,$00
-V_D:                db      $00,$00,$00,$00
-V_E:                db      $00,$00,$00,$00
-V_F:                db      $00,$00,$00,$00
-V_K:                db      $00,$00,$00,$00
-V_TEMP:             db      $00,$00,$00,$00
-BUFFER:             db      $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-CODE:               db      $00,$00,$00,$00
-H_0                 EQU     $043a
-H_1                 EQU     $043e
-H_2                 EQU     $0442
-H_3                 EQU     $0446
-H_4                 EQU     $044a
-H2_0                EQU     $044e
-H2_1                EQU     $0452
-H2_2                EQU     $0456
-H2_3                EQU     $045a
-H2_4                EQU     $045e
 
-V_A                 EQU     $04d2
-V_B                 EQU     $04d6
-V_C                 EQU     $04da
-V_D                 EQU     $04de
-V_E                 EQU     $04e2
-V_F                 EQU     $04e6
-V_K                 EQU     $04ea
-V_TEMP              EQU     $04ee
 ;
 ; <autogenerated>
 ; THIS SECTION IS AUTO-GENERATED *** DO NOT MODIFY ***
