@@ -255,6 +255,9 @@ DEBUGUNIX:      jsr     CLEARALL                ; Clear the display
                 bsr     NEXTBYTE
                 jmp     PUTMID12
 
+;
+; TODO: Convert these operations to a table somehow
+;
 ADDOP:
                 lda     #(ADD_CB-OP_CB)-1
                 sta     OP_CB
@@ -366,121 +369,6 @@ SET_CB:         lda     #$69
 XOR_LHS         EQU     *+1
 XOR_CB:         eor     $4000,X
                 rts
-
-; XOR32:
-;                 ldx     #4
-; XOR32_REPEAT:   decx
-;                 lda     RHS_ADDR,X
-;                 eor     LHS_ADDR,X
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     XOR32_REPEAT
-;                 rts
-
-; SET32:
-;                 ldx     #4
-; SET32_REPEAT:   decx
-;                 lda     RHS_ADDR,X
-;                 lda     #$69
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     SET32_REPEAT
-;                 rts
-
-; ROL32:
-;                 clc
-;                 ldx     #4
-; ROL32_REPEAT:   decx
-;                 lda     RHS_ADDR,X
-;                 rola
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     ROL32_REPEAT
-;                 bcs     ROL32_SET1
-;                 rts
-; ROL32_SET1:     lda     #1
-;                 eor     DST_ADDR+3
-;                 sta     DST_ADDR+3
-;                 rts
-
-; OR32:
-;                 ldx     #4
-; OR32_REPEAT:    decx
-;                 lda     RHS_ADDR,X
-;                 ora     LHS_ADDR,X
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     OR32_REPEAT
-;                 rts
-
-; NOT32:
-;                 ldx     #4
-; NOT32_REPEAT:   decx
-;                 lda     RHS_ADDR,X
-;                 eor     FF_ADDR
-;                 bra     CONT_NOT32
-; FF_ADDR         db      $ff
-; CONT_NOT32:     sta     DST_ADDR,X
-;                 tstx
-;                 bne     NOT32_REPEAT
-;                 rts
-
-; AND32:
-;                 ldx     #4
-; AND32_REPEAT:   decx
-;                 lda     RHS_ADDR,X
-;                 and     LHS_ADDR,X
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     AND32_REPEAT
-;                 rts
-
-; COPY32:
-;                 ldx     #4
-; COPY32_REPEAT:  decx
-;                 lda     RHS_ADDR,X
-;                 lda     LHS_ADDR,X
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     COPY32_REPEAT
-;                 rts
-
-; DEC32:
-;                 clc
-;                 ldx     #4
-; DEC32_REPEAT:   decx
-;                 lda     RHS_ADDR,X
-;                 sbc     LHS_ADDR,X
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     DEC32_REPEAT
-;                 rts
-
-; ADD32:
-;                 clc
-;                 ldx     #4
-; ADD32_REPEAT:   decx
-;                 lda     RHS_ADDR,X
-;                 adc     LHS_ADDR,X
-;                 sta     DST_ADDR,X
-;                 tstx
-;                 bne     ADD32_REPEAT
-;                 rts
-
-; BINOP:                                          ; Self modifying code to do a binary operation
-; BINOP_ITER      EQU     *+1
-;                 ldx     #4                      ; Set the default iterator. 4 bytes for 32 bit operations
-; BINOP_RHS       EQU     *+1
-; BINOP_REPEAT:   lda     $4000,X
-; BINOP_OP        EQU     *+1
-;                 bra     BINOP_DST-1             ; Self modifying code for the operation callback
-; BINOP_DST       EQU     *+1
-;                 sta     $4000,X
-;                 decx
-;                 bne     BINOP_REPEAT
-;                 ldx     #4
-;                 sta     BINOP_ITER              ; Reset the default iterator
-;                 rts
 
 RESETCOUNTDOWN
                 clr     BTNFLAGS                  ; Stop blinking
