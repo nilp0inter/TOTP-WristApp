@@ -115,15 +115,15 @@ S8_GITHUB:       timex   " GITHUB "
 ; calculate the absolute address to be used in different parts of the self
 ; modifying code.
 ;
-LOADBYTE_ADDRHI     EQU     (LOADBYTE & $FF00) / 0x0100
+LOADBYTE_ADDRHI     EQU     (LOADBYTE / $0100)
 LOADBYTE_ADDRLO     EQU     (LOADBYTE & $00FF)
 
-OP_RHS_ADDRHI       EQU     (OP_RHS & $FF00) / 0x0100
+OP_RHS_ADDRHI       EQU     (OP_RHS / $0100)
 OP_RHS_ADDRLO       EQU     (OP_RHS & $00FF)
-OP_DST_ADDRHI       EQU     (OP_DST & $FF00) / 0x0100
+OP_DST_ADDRHI       EQU     (OP_DST / $0100)
 OP_DST_ADDRLO       EQU     (OP_DST & $00FF)
 
-ADD_LHS_ADDRHI      EQU     (ADD_LHS & $FF00) / 0x0100
+ADD_LHS_ADDRHI      EQU     (ADD_LHS / $0100)
 ADD_LHS_ADDRLO      EQU     (ADD_LHS & $00FF)
 
 ONE                 db      $aa,$aa,$00,$ff
@@ -198,16 +198,16 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 
 ; DELETEENTRY     jmp     SAYHOLDTODELETE
 
-TESTSTUFF       lda     #(TCOUNT & 0xff00) / 0x0100
+TESTSTUFF       lda     #(TCOUNT / $0100)
                 sta     OP_RHS
                 sta     OP_DST
-                lda     #(TCOUNT & 0x00ff)
+                lda     #(TCOUNT & $00ff)
                 sta     OP_RHS+1
                 sta     OP_DST+1
-                lda     #(ONE & 0xff00) / 0x0100
+                lda     #(ONE / $0100)
                 sta     XOR_LHS
                 ; sta     OP_RHS
-                lda     #(ONE & 0x00ff)
+                lda     #(ONE & $00ff)
                 sta     XOR_LHS+1
                 ; sta     OP_RHS+1
                 ; lda     #$69
