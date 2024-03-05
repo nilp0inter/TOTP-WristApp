@@ -11,99 +11,90 @@ INCLUDE         "WRISTAPP.I"
 ;
 ; Memory Segments Utilization for TOTP Calculator SHA1 Calculations
 ; -----------------------------------------------------------------
-; The memory segments listed below are leveraged during the SHA1 hash
-; calculations for the TOTP calculator. These segments are temporarily
-; repurposed to accommodate variables specific to the TOTP calculation process,
-; alongside their original intended usage.
+;
+; The memory segments listed below are leveraged during the SHA1 hash calculations. These segments are temporarily
+; repurposed to accommodate variables specific to the TOTP calculation process, alongside their original intended usage.
 ;
 ; Segment $043a-$0462 (40 bytes)
 ;   - Original Usage:
 ;       - BUF_PHONENUM (12 bytes): Initially reserved for phone number storage.
-;       - EXTRACTBUF (28 bytes): Allocated for data extraction. Documentation
-;           discrepancies note it as 32 or 31 bytes. However, practical use
-;           determines it effectively as 31 bytes since clearing the 32nd byte
-;           also clears the first alarm hours field.
+;       - EXTRACTBUF (28 bytes): Allocated for data extraction. Documentation discrepancies note it as 32 or 31 bytes.
+;           However, practical use determines it effectively as 31 bytes since clearing the 32nd byte also clears the
+;           first alarm hours field.
 ;   - TOTP Variables:
-;       - V_A to V_F (6 variables * 4 bytes each): Variables used in
-;           intermediate steps of SHA1 calculations.
+;       - V_A to V_F (6 variables * 4 bytes each): Variables used in intermediate steps of SHA1 calculations.
 ;       - V_K (4 bytes): Additional variable for SHA1 computation.
-;       - V_TEMP (4 bytes): Temporary storage during calculations.
-;       - V_TEMP2 (4 bytes): Additional temporary storage during calculations.
+;       - V_TEMP1 to V_TEMP3 (3 variables * 4 bytes each): Temporary storage during calculations.
 ;
-;     Note: Of the allocated 40 bytes, 36 are used for TOTP variables (V_A-V_F,
-;     V_K, V_TEMP, V_TEMP2) during SHA1 calculations. The original variables
-;     (BUF_PHONENUM, EXTRACTBUF) are key for EEPROM data recovery outside these
+;     Note: Of the allocated 40 bytes, 36 are used for TOTP variables (V_A-V_F, V_K, V_TEMP, V_TEMP2) during SHA1
+;     calculations. The original variables (BUF_PHONENUM, EXTRACTBUF) are key for EEPROM data recovery outside these
 ;     computations.
 ;
 ; Segment $04d2 (32 bytes)
 ;   - Original Usage:
 ;       - MSGBUF (32 bytes): Reserved for message buffering.
-;         Note: No adverse effects observed when clearing up to 40 bytes,
-;         suggesting some flexibility in the original design.
+;         Note: No adverse effects observed when clearing up to 40 bytes, suggesting some flexibility in the original
+;         design.
 ;   - TOTP Variables:
-;       - H_0 to H_4 (5 variables * 4 bytes each): Variables for storing
-;           intermediate hash values.
-;       - H2_0 to H2_4 (5 variables * 4 bytes each): Additional variables for
-;           hash computations, used in the HMAC-SHA1 algorithm.
-;     Note: Exactly 40 bytes are used for these TOTP variables, fully utilizing
-;     the segment during the SHA1 hash calculation phase.
+;       - H_0 to H_4 (5 variables * 4 bytes each): Variables for storing intermediate hash values.
+;       - H2_0 to H2_4 (5 variables * 4 bytes each): Additional variables for hash computations, used in the HMAC-SHA1
+;       algorithm.
+;     Note: Exactly 40 bytes are used for these TOTP variables, fully utilizing the segment during the SHA1 hash
+;     calculation phase.
 ;
-; This repurposing of memory segments allows for efficient use of available
-; resources for TOTP SHA1 hash calculations without interfering with the
-; original intended uses of these memory areas.
+; This repurposing of memory segments allows for efficient use of available resources for TOTP SHA1 hash calculations
+; without interfering with the original intended uses of these memory areas.
 ;
 
-V_A                 EQU     $043a
-V_B                 EQU     $043e
-V_C                 EQU     $0442
-V_D                 EQU     $0446
-V_E                 EQU     $044a
-V_F                 EQU     $044e
-V_K                 EQU     $0452
-V_TEMP              EQU     $0456
+V_A_ADDR            EQU     $043a
+V_B_ADDR            EQU     $043e
+V_C_ADDR            EQU     $0442
+V_D_ADDR            EQU     $0446
+V_E_ADDR            EQU     $044a
+V_F_ADDR            EQU     $044e
+V_K_ADDR            EQU     $0452
+V_TEMP1_ADDR        EQU     $0456
+V_TEMP2_ADDR        EQU     $045a
+V_TEMP3_ADDR        EQU     $045e
 
-H_0                 EQU     $04d2
-H_1                 EQU     $04d6
-H_2                 EQU     $04da
-H_3                 EQU     $04de
-H_4                 EQU     $04e2
-H2_0                EQU     $04e6
-H2_1                EQU     $04ea
-H2_2                EQU     $04ee
-H2_3                EQU     $04f2
-H2_4                EQU     $04f6
+H_0_ADDR            EQU     $04d2
+H_1_ADDR            EQU     $04d6
+H_2_ADDR            EQU     $04da
+H_3_ADDR            EQU     $04de
+H_4_ADDR            EQU     $04e2
+H2_0_ADDR           EQU     $04e6
+H2_1_ADDR           EQU     $04ea
+H2_2_ADDR           EQU     $04ee
+H2_3_ADDR           EQU     $04f2
+H2_4_ADDR           EQU     $04f6
 
-COPYOP_OFFSET   EQU     (OP_SAVE-OP_CB)-1       ; No callback
-ROLOP_OFFSET    EQU     (ROL_CB-OP_CB)-1        ; No parameters
-NOTOP_OFFSET    EQU     (NOT_CB-OP_CB)-1        ; No parameters
-SETOP_OFFSET    EQU     (SET_CB-OP_CB)-1        ; 1-byte parameter  @ LHS_ADDRLO
-ADDOP_OFFSET    EQU     (ADD_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
-SUBOP_OFFSET    EQU     (SUB_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
-ANDOP_OFFSET    EQU     (AND_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
-OROP_OFFSET     EQU     (OR_CB-OP_CB)-1         ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
-XOROP_OFFSET    EQU     (XOR_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
+;
+; Multi-byte operations
+; ---------------------
+;
+; The following multi-byte operations are used to perform various operations on multi-byte data. These operations
+; include copying data, rotating data, and performing bitwise operations such as AND, OR, and XOR. Each operation is
+; identified by a unique code, and the corresponding callback routine is called to perform the operation. The callback
+; routine is determined by the operation code and is stored in a table for easy access.
+;
+COPYOP_OFFSET   EQU     (OP_SAVE-OP_CB)-1
+ROLOP_OFFSET    EQU     (ROL_CB-OP_CB)-1
+NOTOP_OFFSET    EQU     (NOT_CB-OP_CB)-1
+SETOP_OFFSET    EQU     (SET_CB-OP_CB)-1
+ADDOP_OFFSET    EQU     (ADD_CB-OP_CB)-1
+SUBOP_OFFSET    EQU     (SUB_CB-OP_CB)-1
+ANDOP_OFFSET    EQU     (AND_CB-OP_CB)-1
+OROP_OFFSET     EQU     (OR_CB-OP_CB)-1
+XOROP_OFFSET    EQU     (XOR_CB-OP_CB)-1
 
 MAX_0BYTE_OP    EQU     NOTOP_OFFSET+1
 MAX_1BYTE_OP    EQU     SETOP_OFFSET+1
 
-;
-; Multi-byte operation codes
-;
-COPYOP          EQU     0
-ROLOP           EQU     1
-NOTOP           EQU     2
-SETOP           EQU     3
-ADDOP           EQU     4
-SUBOP           EQU     5
-ANDOP           EQU     6
-OROP            EQU     7
-XOROP           EQU     8
+OPR_ADDRHI      EQU     $60
+OPR_ADDRLO      EQU     $61
+COUNTDOWN       EQU     $62
 
-OFFSET          EQU     $60
-COUNTDOWN       EQU     $61
-
-LHS_ADDRHI      EQU     $62
-LHS_ADDRLO      EQU     $63
+OFFSET          EQU     $63
 
 START           EQU     *
 ;
@@ -145,6 +136,22 @@ LOADBYTE_ADDRLO     EQU     (LOADBYTE & $00FF)
 
 ; ONE                 db      $aa,$ff,$00,$01
 
+;
+; Multi-byte operation codes
+;
+COPYOP          EQU     0                   ; No callback
+ROLOP           EQU     1                   ; No parameters
+NOTOP           EQU     2                   ; No parameters
+SETOP           EQU     3                   ; 1-byte parameter  @ OPR_ADDRLO
+ADDOP           EQU     4                   ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+SUBOP           EQU     5                   ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+ANDOP           EQU     6                   ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+OROP            EQU     7                   ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+XOROP           EQU     8                   ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+
+;
+; This table is used to call the right operation callback
+;
 OPERATIONS      db      COPYOP_OFFSET & $ff
                 db      ROLOP_OFFSET  & $ff
                 db      NOTOP_OFFSET  & $ff
@@ -155,6 +162,47 @@ OPERATIONS      db      COPYOP_OFFSET & $ff
                 db      OROP_OFFSET   & $ff
                 db      XOROP_OFFSET  & $ff
 
+;
+; Encoded variables
+;
+V_ADDR_MODE_OFFSET      EQU (V_ADDR_MODE-LOAD_VAR_CB)-1
+H_ADDR_MODE_OFFSET      EQU (H_ADDR_MODE-LOAD_VAR_CB)-1
+BUFIDX_ADDR_MODE_OFFSET EQU (BUFIDX_ADDR_MODE-LOAD_VAR_CB)-1
+BUFMOD_ADDR_MODE_OFFSET EQU (BUFMOD_ADDR_MODE-LOAD_VAR_CB)-1
+
+ADDR_MODE_CBS   db      V_ADDR_MODE_OFFSET & $ff
+                db      H_ADDR_MODE_OFFSET & $ff
+                db      BUFIDX_ADDR_MODE_OFFSET & $ff
+                db      BUFMOD_ADDR_MODE_OFFSET & $ff
+
+AS_V_ADDR       EQU     0
+AS_H_ADDR       EQU     1
+AS_BUFIDX_ADDR  EQU     2
+AS_BUFMOD_ADDR  EQU     3
+
+V_A             EQU     ((0 * 4) | AS_V_ADDR)
+V_B             EQU     ((1 * 4) | AS_V_ADDR)
+V_C             EQU     ((2 * 4) | AS_V_ADDR)
+V_D             EQU     ((3 * 4) | AS_V_ADDR)
+V_E             EQU     ((4 * 4) | AS_V_ADDR)
+V_F             EQU     ((5 * 4) | AS_V_ADDR)
+V_K             EQU     ((6 * 4) | AS_V_ADDR)
+V_TEMP1         EQU     ((7 * 4) | AS_V_ADDR)
+V_TEMP2         EQU     ((8 * 4) | AS_V_ADDR)
+V_TEMP3         EQU     ((9 * 4) | AS_V_ADDR)
+H_0             EQU     ((0 * 4) | AS_H_ADDR)
+H_1             EQU     ((1 * 4) | AS_H_ADDR)
+H_2             EQU     ((2 * 4) | AS_H_ADDR)
+H_3             EQU     ((3 * 4) | AS_H_ADDR)
+H_4             EQU     ((4 * 4) | AS_H_ADDR)
+H2_0            EQU     ((0 * 4) | AS_BUFIDX_ADDR)
+H2_1            EQU     ((1 * 4) | AS_BUFIDX_ADDR)
+H2_2            EQU     ((2 * 4) | AS_BUFIDX_ADDR)
+H2_3            EQU     ((3 * 4) | AS_BUFIDX_ADDR)
+H2_4            EQU     ((4 * 4) | AS_BUFIDX_ADDR)
+
+BUFMOD_0        EQU     ((0 * 4) | AS_BUFMOD_ADDR)
+
 ; BUFFER:             db      $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
 ;
@@ -162,9 +210,9 @@ OPERATIONS      db      COPYOP_OFFSET & $ff
 ; THIS SECTION IS AUTO-GENERATED *** DO NOT MODIFY ***
 ;
 
-; TCOUNT is a 4 byte counter that is incremented every 30 seconds
+; TIME_STEP is a 4 byte counter that is incremented every 30 seconds
 ; it is used as the counter for the TOTP algorithm.
-%TCOUNT%
+%TIME_STEP%
 
 ;
 ; </autogenerated>
@@ -227,27 +275,24 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 ; DELETEENTRY     jmp     SAYHOLDTODELETE
 
 TESTSTUFF
-                lda     #(TCOUNT / $0100)
-                ldx     #(TCOUNT & $00ff)
-                bsr     SET_OP_DST
+                lda     BUFMOD_0
+                jsr     LOAD_VAR_ADDR
                 bsr     SET_OP_RHS
+                bsr     SET_OP_DST
 
-                ; lda     #(ONE / $0100)
-                ; sta     LHS_ADDRHI
-                ; lda     #(ONE & $00ff)
-                ; sta     LHS_ADDRLO
+                lda     V_A
+                jsr     LOAD_VAR_ADDR
+                bsr     SET_OP_LHS
 
+                ; ldx     V_B
+                ; bsr     SET_ENC_RHS
 
-                ; lda     #$69
-                ; sta     LHS_ADDRLO
+                ; ldx     V_C
+                ; bsr     SET_ENC_LHS
 
-                ; lda     #(ONE / $0100)
-                ; sta     LHS_ADDRHI
-                ; lda     #(ONE & $00ff)
-                ; sta     LHS_ADDRLO
-
-                ldx     #ROLOP
+                ldx     #ADDOP
                 bsr     DO_OP
+
                 bra     DEBUGUNIX
 
 FIRSTBYTE:      lda     #LOADBYTE_ADDRLO
@@ -275,7 +320,7 @@ GETBYTE:
                 rts
 
 DEBUGUNIX:      jsr     CLEARALL                ; Clear the display
-                lda     #LOADBYTE-TCOUNT
+                lda     #LOADBYTE-TIME_STEP
                 sta     OFFSET
 
                 bsr     FIRSTBYTE
@@ -289,6 +334,19 @@ DEBUGUNIX:      jsr     CLEARALL                ; Clear the display
 
                 bsr     NEXTBYTE
                 jmp     PUTMID12
+
+;
+; SET_OP_LHS
+;    Set the left hand side address for a multi-byte operation
+;  Parameters:
+;    A - The high byte of the left hand side address
+;    X - The low byte of the left hand side address
+;  Returns:
+;    The left hand side address is set in the OPR_ADDRHI and OPR_ADDRLO variables
+;
+SET_OP_LHS:     sta     OPR_ADDRHI
+                stx     OPR_ADDRLO
+                rts
 
 ;
 ; SET_OP_DST
@@ -324,8 +382,8 @@ SET_OP_RHS:     sta     OP_RHS_ADDRHI
 ;    The right hand side address (if needed) should have been set with the SET_OP_RHS routine
 ;  Parameters:
 ;    X - The operation to perform (See the multi-byte operation codes above)
-;    LHS_ADDRHI - The high byte of the left hand side address (for 2-byte operations)
-;    LHS_ADDRLO - The low byte of the left hand side address (for 1-byte and 2-byte operations)
+;    OPR_ADDRHI - The high byte of the left hand side address (for 2-byte operations)
+;    OPR_ADDRLO - The low byte of the left hand side address (for 1-byte and 2-byte operations)
 ;    OP_IDX - The number of bytes to operate on (4 by default and reset after every call)
 ;
 DO_OP:          lda     OPERATIONS,X            ; Get the operation call back offset from the table
@@ -335,9 +393,9 @@ DO_OP:          lda     OPERATIONS,X            ; Get the operation call back of
                 blo     OP_READY                ; If it is a 0-byte operation we are done
                 cmp     #MAX_1BYTE_OP           ; Is it a 1-byte operation?
                 blo     OP_SET1                 ; If so we need to set the low byte of the left hand side address
-OP_SET2:        lda     LHS_ADDRHI              ; Apparently it is a 2-byte operation. Get the high byte of the left hand side address
+OP_SET2:        lda     OPR_ADDRHI              ; Apparently it is a 2-byte operation. Get the high byte of the left hand side address
                 sta     OP_CB+2,X               ; And set it in the callback
-OP_SET1:        lda     LHS_ADDRLO              ; Get the low byte of the left hand side address
+OP_SET1:        lda     OPR_ADDRLO              ; Get the low byte of the left hand side address
                 sta     OP_CB+3,X               ; And set it in the callback
 OP_READY:       txa                             ; We need back the operation in ACCA
                 clc                             ; Some operations' logic depend on the carry flag being clear
@@ -410,6 +468,48 @@ OR_CB:          ora     $C0DE,X                 ; <- Self modifying byte to set 
 XOR_CB:         eor     $C0DE,X                 ; <- Self modifying byte to set the left hand side operand address
                 rts
 
+;
+; LOAD_VAR_ADDR
+;    Given an encoded variable address, decode it into the OPR_ADDRHI and OPR_ADDRLO variables
+;    An encoded variable address has the following format:
+;      - The lower two bits are the addressing modes.
+;      - The next 6 bits are a parameter to the addressing mode callback
+;  Parameters:
+;    A - The encoded variable address
+;
+LOAD_VAR_ADDR:  tax                         ; Save a copy of the encoded variable address
+                lsra                        ; Shift the addressing mode parameter to the right
+                lsra
+                sta     OPR_ADDRLO          ; Save the addressing mode parameter
+                txa                         ; Restore the encoded variable address
+                and     #3                  ; Get the addressing mode
+                tax                         ; Use it as an index
+                lda     ADDR_MODE_CBS,X     ; Get the addressing mode callback
+                sta     LOAD_VAR_CB         ; Modify the LOAD_VAR_CB routine to call the right callback
+LOAD_VAR_CB     EQU     *+1                 ; <- Self modifying byte to get the right callback
+                bra     V_ADDR_MODE         ; Call the right callback
+
+V_ADDR_MODE:    lda     (V_A_ADDR & $ff)
+                add     OPR_ADDRLO
+                tax
+                lda     (V_A_ADDR / $0100)
+                adc     #0                  ; Not needed? TODO: Check it
+                rts
+
+BUFIDX_ADDR_MODE:
+H_ADDR_MODE:    lda     (H_0_ADDR & $ff)
+                add     OPR_ADDRLO
+                tax
+                lda     (H_0_ADDR / $0100)
+                adc     #0                  ; Not needed? TODO: Check it
+                rts
+
+; Note using this addressing mode for testing purposes
+BUFMOD_ADDR_MODE:
+                lda     #(TIME_STEP / $0100)
+                ldx     #(TIME_STEP & $00ff)
+                rts
+
 RESETCOUNTDOWN
                 clr     BTNFLAGS                  ; Stop blinking
                 lda     #30
@@ -417,16 +517,16 @@ RESETCOUNTDOWN
                 sec                               ; Set the carry flag
                 ldx     #4                        ; And add it to the time
 INCCOUNT        decx
-                lda     TCOUNT,X
+                lda     TIME_STEP,X
                 adc     #0
-                sta     TCOUNT,X
+                sta     TIME_STEP,X
                 bne     INCCOUNT
                 rts
 ;
-; This callback gets called every second to keep TCOUNT up to date.
+; This callback gets called every second to keep TIME_STEP up to date.
 ;   - The COUNTDOWN variable is decremented
 ;   - If the COUNTDOWN variable is zero, the countdown is reset to 30 seconds
-;     and TCOUNT is incremented by one.
+;     and TIME_STEP is incremented by one.
 ;
 SECTIC:
                 lda     COUNTDOWN
@@ -445,4 +545,4 @@ MAIN:
                 sta     COUNTDOWN
                 rts
 
-; vim: set expandtab ts=4 sw=4 filetype=asm:
+; vim: set expandtab ts=4 sw=4 filetype=asm textwidth=120:

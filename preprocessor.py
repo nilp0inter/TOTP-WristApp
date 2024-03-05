@@ -29,11 +29,11 @@ def tcount():
     time_step = int_to_hex_bytes(timestamp)
 
     print(f"{time_step=}", file=sys.stderr)
-    return f"TCOUNT    db   ${time_step[0]},${time_step[1]},${time_step[2]},${time_step[3]}"
+    return f"TIME_STEP    db   ${time_step[0]},${time_step[1]},${time_step[2]},${time_step[3]}"
 
 
 SYMBOLS = {
-    "%TCOUNT%\n": tcount,
+    "%TIME_STEP%\n": tcount,
 }
 
 
