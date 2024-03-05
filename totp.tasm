@@ -73,11 +73,40 @@ H2_2                EQU     $04ee
 H2_3                EQU     $04f2
 H2_4                EQU     $04f6
 
+COPYOP_OFFSET   EQU     (OP_SAVE-OP_CB)-1       ; No callback
+ROLOP_OFFSET    EQU     (ROL_CB-OP_CB)-1        ; No parameters
+NOTOP_OFFSET    EQU     (NOT_CB-OP_CB)-1        ; No parameters
+SETOP_OFFSET    EQU     (SET_CB-OP_CB)-1        ; 1-byte parameter  @ LHS_ADDRLO
+ADDOP_OFFSET    EQU     (ADD_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
+SUBOP_OFFSET    EQU     (SUB_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
+ANDOP_OFFSET    EQU     (AND_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
+OROP_OFFSET     EQU     (OR_CB-OP_CB)-1         ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
+XOROP_OFFSET    EQU     (XOR_CB-OP_CB)-1        ; 2-byte parameters @ LHS_ADDRHI, LHS_ADDRLO
+
+MAX_0BYTE_OP    EQU     NOTOP_OFFSET+1
+MAX_1BYTE_OP    EQU     SETOP_OFFSET+1
+
+;
+; Multi-byte operation codes
+;
+COPYOP          EQU     0
+ROLOP           EQU     1
+NOTOP           EQU     2
+SETOP           EQU     3
+ADDOP           EQU     4
+SUBOP           EQU     5
+ANDOP           EQU     6
+OROP            EQU     7
+XOROP           EQU     8
+
 ;
 ; (1) Program specific constants
 ;
 OFFSET          EQU     $60
 COUNTDOWN       EQU     $61
+
+LHS_ADDRHI      EQU     $62
+LHS_ADDRLO      EQU     $63
 
 ;   Bit 0 indicates that we want to show the segments instead of the message
 ;
@@ -118,15 +147,17 @@ S8_GITHUB:       timex   " GITHUB "
 LOADBYTE_ADDRHI     EQU     (LOADBYTE / $0100)
 LOADBYTE_ADDRLO     EQU     (LOADBYTE & $00FF)
 
-OP_RHS_ADDRHI       EQU     (OP_RHS / $0100)
-OP_RHS_ADDRLO       EQU     (OP_RHS & $00FF)
-OP_DST_ADDRHI       EQU     (OP_DST / $0100)
-OP_DST_ADDRLO       EQU     (OP_DST & $00FF)
+; ONE                 db      $aa,$ff,$00,$01
 
-ADD_LHS_ADDRHI      EQU     (ADD_LHS / $0100)
-ADD_LHS_ADDRLO      EQU     (ADD_LHS & $00FF)
-
-ONE                 db      $aa,$aa,$00,$ff
+OPERATIONS      db      COPYOP_OFFSET & $ff
+                db      ROLOP_OFFSET  & $ff
+                db      NOTOP_OFFSET  & $ff
+                db      SETOP_OFFSET  & $ff
+                db      ADDOP_OFFSET  & $ff
+                db      SUBOP_OFFSET  & $ff
+                db      ANDOP_OFFSET  & $ff
+                db      OROP_OFFSET   & $ff
+                db      XOROP_OFFSET  & $ff
 
 ; BUFFER:             db      $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
@@ -146,6 +177,7 @@ ONE                 db      $aa,$aa,$00,$ff
 
 ;
 ; (4) State Table
+;
 STATETAB0:
                 db      0
                 db      EVT_ENTER,TIM_ONCE,0   ; Initial state
@@ -198,21 +230,30 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 
 ; DELETEENTRY     jmp     SAYHOLDTODELETE
 
-TESTSTUFF       lda     #(TCOUNT / $0100)
-                sta     OP_RHS
+TESTSTUFF
+                lda     #(TCOUNT / $0100)
                 sta     OP_DST
+                sta     OP_RHS
                 lda     #(TCOUNT & $00ff)
-                sta     OP_RHS+1
                 sta     OP_DST+1
-                lda     #(ONE / $0100)
-                sta     XOR_LHS
-                ; sta     OP_RHS
-                lda     #(ONE & $00ff)
-                sta     XOR_LHS+1
-                ; sta     OP_RHS+1
+                sta     OP_RHS+1
+
+                ; lda     #(ONE / $0100)
+                ; sta     LHS_ADDRHI
+                ; lda     #(ONE & $00ff)
+                ; sta     LHS_ADDRLO
+
+
                 ; lda     #$69
-                ; sta     SET_VALUE
-                bsr     XOROP
+                ; sta     LHS_ADDRLO
+
+                ; lda     #(ONE / $0100)
+                ; sta     LHS_ADDRHI
+                ; lda     #(ONE & $00ff)
+                ; sta     LHS_ADDRLO
+
+                ldx     #NOTOP
+                bsr     DO_OP
                 bra     DEBUGUNIX
 
 FIRSTBYTE:      lda     #LOADBYTE_ADDRLO
@@ -255,53 +296,37 @@ DEBUGUNIX:      jsr     CLEARALL                ; Clear the display
                 bsr     NEXTBYTE
                 jmp     PUTMID12
 
+
 ;
-; TODO: Convert these operations to a table somehow
+; DO_OP
+;    Perform a multi-byte operation
+;  Parameters:
+;    X - The operation to perform (See the multi-byte operation codes above)
+;    LHS_ADDRHI - The high byte of the left hand side address (for 2-byte operations)
+;    LHS_ADDRLO - The low byte of the left hand side address (for 1-byte and 2-byte operations)
+;    OP_DST - The high byte of the destination address
+;    OP_DST+1 - The low byte of the destination address
+;    OP_RHS - The high byte of the right hand side address
+;    OP_RHS+1 - The low byte of the right hand side address
+;    OP_IDX - The number of bytes to operate on
 ;
-ADDOP:
-                lda     #(ADD_CB-OP_CB)-1
+DO_OP:          lda     OPERATIONS,X
                 sta     OP_CB
+                cmp     #MAX_0BYTE_OP
+                blo     OP_READY
+                ldx     OP_CB
+                cmp     #MAX_1BYTE_OP
+                blo     OP_SET1
+OP_SET2:        lda     LHS_ADDRHI
+                sta     OP_CB+2,X
+OP_SET1:        lda     LHS_ADDRLO
+                sta     OP_CB+3,X
+OP_READY:       lda     OP_CB
                 clc
+                cmp     #ROLOP_OFFSET
+                beq     ROLOP_
                 bra     OPERATION
-
-SUBOP:
-                lda     #(SUB_CB-OP_CB)-1
-                sta     OP_CB
-                clc
-                bra     OPERATION
-
-COPYOP:
-                lda     #(OP_SAVE-OP_CB)-1
-                sta     OP_CB
-                bra     OPERATION
-
-ANDOP:
-                lda     #(AND_CB-OP_CB)-1
-                sta     OP_CB
-                bra     OPERATION
-
-NOTOP:
-                lda     #(NOT_CB-OP_CB)-1
-                sta     OP_CB
-                bra     OPERATION
-
-OROP:
-                lda     #(OR_CB-OP_CB)-1
-                sta     OP_CB
-                bra     OPERATION
-
-SETOP:
-                lda     #(SET_CB-OP_CB)-1
-                sta     OP_CB
-                bra     OPERATION
-
-XOROP:
-                lda     #(XOR_CB-OP_CB)-1
-                sta     OP_CB
-                bra     OPERATION
-
-ROLOP:
-                lda     OP_IDX
+ROLOP_:         lda     OP_IDX
                 deca
                 sta     ROLOP_IDX
                 lda     OP_DST
@@ -310,10 +335,9 @@ ROLOP:
                 lda     OP_DST+1
                 sta     ROLOP_EOR+1
                 sta     ROLOP_STA+1
-                lda     #(ROL_CB-OP_CB)-1
-                sta     OP_CB
-                clc
+
                 bsr     OPERATION
+
                 bcc     ROLOP_END
                 ; fall into ROLOP_SET1
 ROLOP_SET1      lda     #1
@@ -339,34 +363,38 @@ OP_SAVE:        sta     $4000,X
                 bne     OP_REPEAT
                 rts
 
-ADD_LHS         EQU     *+1
-ADD_CB:         adc     $4000,X
-                rts
-
-SUB_LHS         EQU     *+1
-SUB_CB:         sbc     $4000,X
-                rts
-
-AND_LHS         EQU     *+1
-AND_CB:         and     $4000,X
+;
+; No parameter callbacks
+;
+ROL_CB:         rola
                 rts
 
 FF_ADDR         db      $ff
 NOT_CB:         eor     FF_ADDR
                 rts
 
-OR_LHS          EQU     *+1
+;
+; 1-byte parameter callbacks
+;
+SET_CB:         nop                 ; So that it becomes aligned with the 2-byte parameter callbacks
+                lda     #$42
+                rts
+
+;
+; 2-byte parameter callbacks
+;
+ADD_CB:         adc     $4000,X
+                rts
+
+SUB_CB:         sbc     $4000,X
+                rts
+
+AND_CB:         and     $4000,X
+                rts
+
 OR_CB:          ora     $4000,X
                 rts
 
-ROL_CB:         rola
-                rts
-
-SET_VALUE       EQU     *+1
-SET_CB:         lda     #$69
-                rts
-
-XOR_LHS         EQU     *+1
 XOR_CB:         eor     $4000,X
                 rts
 
