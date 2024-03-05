@@ -99,20 +99,17 @@ ANDOP           EQU     6
 OROP            EQU     7
 XOROP           EQU     8
 
-;
-; (1) Program specific constants
-;
 OFFSET          EQU     $60
 COUNTDOWN       EQU     $61
 
 LHS_ADDRHI      EQU     $62
 LHS_ADDRLO      EQU     $63
 
-;   Bit 0 indicates that we want to show the segments instead of the message
-;
+
 START           EQU     *
 ;
 ; (2) System entry point vectors
+;
 L0110:          jmp     MAIN       ; The main entry point - WRIST_MAIN
 L0113:          rts                ; Called when we are suspended for any reason - WRIST_SUSPEND
                 nop
@@ -189,7 +186,7 @@ STATETAB0:
 
 ;
 ; (5) State Table 0 Handler
-; This is called to process the state events.  We only see ENTER, RESUME, and DNNEXT events
+; This is called to process the state events.  We only see DNNEXT event
 ;
 HANDLE_STATE0:
                 bset    1,APP_FLAGS             ; Indicate that we can be suspended
@@ -424,9 +421,7 @@ SECTIC:
                 rts
 
 ;
-; (6) Our only real piece of working code...
-;
-; (7) This is the main initialization routine which is called when we first get the app into memory
+; This is the main initialization routine which is called when we first get the app into memory
 ;
 MAIN:
                 lda     #$c1            ; App is loaded, uses system rules for button beeps and second timer
