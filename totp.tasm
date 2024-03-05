@@ -105,7 +105,6 @@ COUNTDOWN       EQU     $61
 LHS_ADDRHI      EQU     $62
 LHS_ADDRLO      EQU     $63
 
-
 START           EQU     *
 ;
 ; (2) System entry point vectors
@@ -229,11 +228,9 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 
 TESTSTUFF
                 lda     #(TCOUNT / $0100)
-                sta     OP_DST
-                sta     OP_RHS
-                lda     #(TCOUNT & $00ff)
-                sta     OP_DST+1
-                sta     OP_RHS+1
+                ldx     #(TCOUNT & $00ff)
+                bsr     SET_OP_DST
+                bsr     SET_OP_RHS
 
                 ; lda     #(ONE / $0100)
                 ; sta     LHS_ADDRHI
@@ -249,7 +246,7 @@ TESTSTUFF
                 ; lda     #(ONE & $00ff)
                 ; sta     LHS_ADDRLO
 
-                ldx     #NOTOP
+                ldx     #ROLOP
                 bsr     DO_OP
                 bra     DEBUGUNIX
 
@@ -293,106 +290,124 @@ DEBUGUNIX:      jsr     CLEARALL                ; Clear the display
                 bsr     NEXTBYTE
                 jmp     PUTMID12
 
+;
+; SET_OP_DST
+;    Set the destination address for a multi-byte operation
+;  Parameters:
+;    A - The high byte of the destination address
+;    X - The low byte of the destination address
+;
+SET_OP_DST:     sta     OP_DST_ADDRHI
+                sta     ROL_EOR_ADDRHI
+                sta     ROL_STA_ADDRHI
+                stx     OP_DST_ADDRLO
+                stx     ROL_EOR_ADDRLO
+                stx     ROL_STA_ADDRLO
+                rts
+
+;
+; SET_OP_RHS
+;    Set the right hand side address for a multi-byte operation
+;  Parameters:
+;    A - The high byte of the right hand side address
+;    X - The low byte of the right hand side address
+;
+SET_OP_RHS:     sta     OP_RHS_ADDRHI
+                stx     OP_RHS_ADDRLO
+                rts
 
 ;
 ; DO_OP
-;    Perform a multi-byte operation
+;    Perform a multi-byte operation.
+;  Requires:
+;    The destination address should have been set with the SET_OP_DST routine
+;    The right hand side address (if needed) should have been set with the SET_OP_RHS routine
 ;  Parameters:
 ;    X - The operation to perform (See the multi-byte operation codes above)
 ;    LHS_ADDRHI - The high byte of the left hand side address (for 2-byte operations)
 ;    LHS_ADDRLO - The low byte of the left hand side address (for 1-byte and 2-byte operations)
-;    OP_DST - The high byte of the destination address
-;    OP_DST+1 - The low byte of the destination address
-;    OP_RHS - The high byte of the right hand side address
-;    OP_RHS+1 - The low byte of the right hand side address
-;    OP_IDX - The number of bytes to operate on
+;    OP_IDX - The number of bytes to operate on (4 by default and reset after every call)
 ;
-DO_OP:          lda     OPERATIONS,X
-                sta     OP_CB
-                cmp     #MAX_0BYTE_OP
-                blo     OP_READY
-                ldx     OP_CB
-                cmp     #MAX_1BYTE_OP
-                blo     OP_SET1
-OP_SET2:        lda     LHS_ADDRHI
-                sta     OP_CB+2,X
-OP_SET1:        lda     LHS_ADDRLO
-                sta     OP_CB+3,X
-OP_READY:       lda     OP_CB
-                clc
-                cmp     #ROLOP_OFFSET
-                beq     ROLOP_
-                bra     OPERATION
-ROLOP_:         lda     OP_IDX
-                deca
-                sta     ROLOP_IDX
-                lda     OP_DST
-                sta     ROLOP_EOR
-                sta     ROLOP_STA
-                lda     OP_DST+1
-                sta     ROLOP_EOR+1
-                sta     ROLOP_STA+1
+DO_OP:          lda     OPERATIONS,X            ; Get the operation call back offset from the table
+                sta     OP_CB                   ; Modify the OPERATION routine to call the right callback
+                tax                             ; We need the callback offset in X to use it as an index
+                cmp     #MAX_0BYTE_OP           ; Now depending on the operation we need to set the right parameters for the parameter setting
+                blo     OP_READY                ; If it is a 0-byte operation we are done
+                cmp     #MAX_1BYTE_OP           ; Is it a 1-byte operation?
+                blo     OP_SET1                 ; If so we need to set the low byte of the left hand side address
+OP_SET2:        lda     LHS_ADDRHI              ; Apparently it is a 2-byte operation. Get the high byte of the left hand side address
+                sta     OP_CB+2,X               ; And set it in the callback
+OP_SET1:        lda     LHS_ADDRLO              ; Get the low byte of the left hand side address
+                sta     OP_CB+3,X               ; And set it in the callback
+OP_READY:       txa                             ; We need back the operation in ACCA
+                clc                             ; Some operations' logic depend on the carry flag being clear
+OP_IDX          EQU     *+1                     ; <- Self modifying byte to set the number of bytes to operate on
+                ldx     #4                      ; By default we are going to operate on 4 bytes
+OP_REPEAT:      decx                            ; Decrement the counter by one
+OP_RHS_ADDRHI   EQU     *+1                     ; <- Self modifying byte to set the high byte of the right hand side operand address
+OP_RHS_ADDRLO   EQU     *+2                     ; <- Self modifying byte to set the low byte of the right hand side operand address
+                lda     $C0DE,X                 ; Get the right hand side byte offset by X
+OP_CB           EQU     *+1                     ; <- Self modifying byte to set the operation callback
+                bsr     OP_SAVE                 ; Call the right operation callback
+OP_DST_ADDRHI   EQU     *+1                     ; <- Self modifying byte to get the destination address
+OP_DST_ADDRLO   EQU     *+2                     ; <- Self modifying byte to get the destination address
+OP_SAVE:        sta     $C0DE,X                 ; Save the result offset by X
+                tstx                            ; Is this the last byte?
+                bne     OP_REPEAT               ; If not, repeat the operation
+ROLOP_LAST_BYTE bcc     OP_END                  ; If the carry flag is clear...
+                lda     OP_CB
+                cmp     #ROLOP_OFFSET           ; Is it a rotate operation?
+                bne     OP_END
+ROLOP_SET1                                      ; Set the last bit of the last byte to 1
+                ldx     OP_IDX                  ; What was the initial offset again?
+                decx                            ; Decrement it by one
+ROL_EOR_ADDRHI  EQU     *+1                     ; <- Self modifying byte to XOR the last byte with 0x1
+ROL_EOR_ADDRLO  EQU     *+2                     ; <- Self modifying byte to XOR the last byte with 0x1
+                lda     $C0DE,X                 ; Set the last bit to 1. NOTE: This cannot be done with BSET bc/ it doesn't support indexed addressing modes
+                inca
+ROL_STA_ADDRHI  EQU     *+1                     ; <- Self modifying byte to store the result
+ROL_STA_ADDRLO  EQU     *+2                     ; <- Self modifying byte to store the result
+                sta     $C0DE,X                 ; Save the result
+OP_END:         lda     #4                      ; Reset the number of bytes to operate on
+                sta     OP_IDX
+                rts                             ; We are done
 
-                bsr     OPERATION
-
-                bcc     ROLOP_END
-                ; fall into ROLOP_SET1
-ROLOP_SET1      lda     #1
-ROLOP_IDX       EQU     *+1
-                ldx     #3
-ROLOP_EOR       EQU     *+1
-                eor     $4000,X
-ROLOP_STA       EQU     *+1
-                sta     $4000,X
-ROLOP_END:      rts
-
-OPERATION:
-OP_IDX          EQU     *+1
-                ldx     #4
-OP_REPEAT:      decx
-OP_RHS          EQU     *+1
-                lda     $4000,X
-OP_CB           EQU     *+1
-                bsr     OP_SAVE
-OP_DST          EQU     *+1
-OP_SAVE:        sta     $4000,X
-                tstx
-                bne     OP_REPEAT
-                rts
+;
+; COPY_CB doesn't exist because it is the default behavior
+;
 
 ;
 ; No parameter callbacks
 ;
-ROL_CB:         rola
+ROL_CB:         rola                            ; Rotate the accumulator left carrying the high bit into the carry flag
                 rts
 
-FF_ADDR         db      $ff
-NOT_CB:         eor     FF_ADDR
+NOT_CB:         eor     #$ff
                 rts
 
 ;
 ; 1-byte parameter callbacks
 ;
-SET_CB:         nop                 ; So that it becomes aligned with the 2-byte parameter callbacks
-                lda     #$42
+SET_CB:         nop                             ; This nop is here so that it becomes aligned with the 2-byte parameter callbacks
+                lda     #$C0;DE                 ; <- Self modifying byte to set the left hand side operand address
                 rts
 
 ;
 ; 2-byte parameter callbacks
 ;
-ADD_CB:         adc     $4000,X
+ADD_CB:         adc     $C0DE,X                 ; <- Self modifying byte to set the left hand side operand address
                 rts
 
-SUB_CB:         sbc     $4000,X
+SUB_CB:         sbc     $C0DE,X                 ; <- Self modifying byte to set the left hand side operand address
                 rts
 
-AND_CB:         and     $4000,X
+AND_CB:         and     $C0DE,X                 ; <- Self modifying byte to set the left hand side operand address
                 rts
 
-OR_CB:          ora     $4000,X
+OR_CB:          ora     $C0DE,X                 ; <- Self modifying byte to set the left hand side operand address
                 rts
 
-XOR_CB:         eor     $4000,X
+XOR_CB:         eor     $C0DE,X                 ; <- Self modifying byte to set the left hand side operand address
                 rts
 
 RESETCOUNTDOWN
