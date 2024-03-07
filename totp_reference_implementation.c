@@ -10,6 +10,8 @@
 #include <time.h>
 #include <assert.h>
 
+#define MASK 0x0F // Mask to get the last 4 bits of a byte
+
 #define BLOCK_SIZE 64 // Block size for SHA-1
 
 // Define the left rotate operation
@@ -23,7 +25,7 @@ uint32_t a, b, c, d, e, f, k, temp;  // Store the temporary variables
 uint32_t h[5];  // Store the hash result
 uint32_t h2[5];  // Store the hash result
 
-uint8_t j;
+uint8_t j, s;
 int32_t i;  // XXX: Why this needs to be signed?
 
 uint8_t buffer[BLOCK_SIZE]; // Shared buffer for HMAC-SHA1 and SHA-1
@@ -104,42 +106,51 @@ void sha1_process_block() {
             k = 0xCA62C1D6;
         }
 
+
+        s = i & MASK;
+
+        /*
+         * if (t >= 16) W[s] = S^1(W[(s + 13) AND MASK] XOR W[(s + 8) AND
+         * MASK] XOR W[(s + 2) AND MASK] XOR W[s]);
+         */
         if (i >= 16) {
             /*
              * Decomposition:
-             * temp = buffer[i+13] ^ buffer[i+8]
+             * temp = buffer[i+13]
+             * temp = temp ^ buffer[i+8]
              * temp = temp ^ buffer[i+2]
              * temp = temp ^ buffer[i]
              * temp = temp << 1
              */
-            printf("i: %d; i+13%16: %d; i+8%16: %d; i+2%16: %d; i%16: %d\n", i, (i+13)%16, (i+8)%16, (i+2)%16, i%16);
-            temp = LEFTROTATE( BIGENDIAN_ITH_32BIT((i+13)%16)
-                             ^ BIGENDIAN_ITH_32BIT((i+8)%16)
-                             ^ BIGENDIAN_ITH_32BIT((i+2)%16)
-                             ^ BIGENDIAN_ITH_32BIT((i+0)%16), 1);
+
+            temp = LEFTROTATE( BIGENDIAN_ITH_32BIT(((s+13) & MASK))
+                             ^ BIGENDIAN_ITH_32BIT(((s+8) & MASK))
+                             ^ BIGENDIAN_ITH_32BIT(((s+2) & MASK))
+                             ^ BIGENDIAN_ITH_32BIT(s)
+                             , 1);
+
 
             // ITTS this assignment can be done by just copying temp to buffer.
             // The *4 part wouldn't be neccessary if we address buffer as uint32_t.
             // Decomposition:
             // buffer[i%16*4] = temp;
-            buffer[(i%16)*4+0] = (uint8_t)(temp >> 24);
-            buffer[(i%16)*4+1] = (uint8_t)(temp >> 16);
-            buffer[(i%16)*4+2] = (uint8_t)(temp >> 8);
-            buffer[(i%16)*4+3] = (uint8_t)(temp);
-            /* *((uint32_t*)&buffer[i%16*4]) = temp; */
-        } else {
-            temp = BIGENDIAN_ITH_32BIT(i%16);
+
+            buffer[s*4+0] = (uint8_t)(temp >> 24);
+            buffer[s*4+1] = (uint8_t)(temp >> 16);
+            buffer[s*4+2] = (uint8_t)(temp >> 8);
+            buffer[s*4+3] = (uint8_t)(temp);
+
         }
 
         /*
          * Decomposition:
-         * temp1 = a << 5
-         * temp1 = temp1 + f
-         * temp1 = temp1 + e
-         * temp1 = temp1 + k
-         * temp = temp + temp1
+         * temp = a << 5
+         * temp = temp + f
+         * temp = temp + e
+         * temp = temp + k
+         * temp = temp + buffer[s*4]
          */
-        temp += LEFTROTATE(a, 5) + f + e + k;
+        temp = LEFTROTATE(a, 5) + f + e + k + BIGENDIAN_ITH_32BIT(s);
         e = d;
         d = c;
         /*
@@ -180,6 +191,8 @@ void hmac_sha1(const uint8_t *key, size_t key_len, const uint8_t *msg, size_t ms
     for (i = 0; i < msg_len; i++) {
         buffer[i] = msg[i];
     }
+    // msg_len should be 8 bytes
+    assert(msg_len == 8);
     pad_buffer(msg_len);
     sha1_process_block();
 
