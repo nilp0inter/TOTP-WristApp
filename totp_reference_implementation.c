@@ -106,20 +106,18 @@ void sha1_process_block() {
             k = 0xCA62C1D6;
         }
 
-
         s = i & MASK;
 
         /*
-         * if (t >= 16) W[s] = S^1(W[(s + 13) AND MASK] XOR W[(s + 8) AND
-         * MASK] XOR W[(s + 2) AND MASK] XOR W[s]);
+         * if (t >= 16) W[s] = S^1(W[(s + 13) AND MASK] XOR W[(s + 8) AND MASK] XOR W[(s + 2) AND MASK] XOR W[s]);
          */
         if (i >= 16) {
             /*
              * Decomposition:
-             * temp = buffer[i+13]
-             * temp = temp ^ buffer[i+8]
-             * temp = temp ^ buffer[i+2]
-             * temp = temp ^ buffer[i]
+             * temp = buffer[(s+13) & MASK]
+             * temp = temp ^ buffer[(s+8) & MASK]
+             * temp = temp ^ buffer[(s+2) & MASK]
+             * temp = temp ^ buffer[s]
              * temp = temp << 1
              */
 
@@ -133,7 +131,7 @@ void sha1_process_block() {
             // ITTS this assignment can be done by just copying temp to buffer.
             // The *4 part wouldn't be neccessary if we address buffer as uint32_t.
             // Decomposition:
-            // buffer[i%16*4] = temp;
+            // buffer[s*4] = temp;
 
             buffer[s*4+0] = (uint8_t)(temp >> 24);
             buffer[s*4+1] = (uint8_t)(temp >> 16);
