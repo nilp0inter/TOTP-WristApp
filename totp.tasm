@@ -417,18 +417,18 @@ LOAD_VAR_ADDR:  tax                         ; Save a copy of the encoded variabl
 LOAD_VAR_CB     EQU     *+1                 ; <- Self modifying byte to get the right callback
                 bra     V_ADDR_MODE         ; Call the right callback
 
-V_ADDR_MODE:    lda     (V_A_ADDR & $ff)
+V_ADDR_MODE:    lda     #(V_A_ADDR & $ff)
                 add     OPR_ADDRLO
                 tax
-                lda     (V_A_ADDR / $0100)
+                lda     #(V_A_ADDR / $0100)
                 adc     #0                  ; Not needed? TODO: Check it
                 rts
 
 BUFIDX_ADDR_MODE:
-H_ADDR_MODE:    lda     (H_0_ADDR & $ff)
+H_ADDR_MODE:    lda     #(H_0_ADDR & $ff)
                 add     OPR_ADDRLO
                 tax
-                lda     (H_0_ADDR / $0100)
+                lda     #(H_0_ADDR / $0100)
                 adc     #0                  ; Not needed? TODO: Check it
                 rts
 
