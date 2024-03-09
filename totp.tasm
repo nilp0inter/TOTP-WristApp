@@ -241,10 +241,10 @@ ENDOP           EQU     $ff
 ;
 OPCODES
 INIT_SHA1       db  V_A,H_0,COPYOP | LHS_CONSTANT,20,ENDOP        ; for (i=0; i<20; i++) a[i] = h[i];
-TEST            db  BUFMOD,V_TEMP1,SETOP | LHS_CONSTANT,$00       ; time_step = 0;
+TEST            db  BUFIDX,V_TEMP1,SETOP | LHS_CONSTANT,$00       ; time_step = 0;
                 db  V_B,V_TEMP1,SETOP | LHS_CONSTANT,$01          ; b = 1;
-                db  BUFMOD,V_B,ADDOP | LHS_SAME_AS_DST            ; time_step += b;
-                db  BUFMOD,V_B,ADDOP | LHS_SAME_AS_DST,ENDOP      ; time_step += b;
+                db  BUFIDX,V_B,ADDOP | LHS_SAME_AS_DST            ; time_step += b;
+                db  BUFIDX,V_B,ADDOP | LHS_SAME_AS_DST,ENDOP      ; time_step += b;
 F__I_LT_20      db  V_F,V_C,ANDOP | LHS_V_B                       ; f = (c & b)
                 db  V_TEMP1,V_B,NOTOP | LHS_V_B                   ; temp = ~b;
                 db  V_TEMP1,V_D,ANDOP | LHS_SAME_AS_DST           ; d = temp & d;
@@ -424,7 +424,6 @@ V_ADDR_MODE:    lda     #(V_A_ADDR & $ff)
                 adc     #0                  ; Not needed? TODO: Check it
                 rts
 
-BUFIDX_ADDR_MODE:
 H_ADDR_MODE:    lda     #(H_0_ADDR & $ff)
                 add     OPR_ADDRLO
                 tax
@@ -432,12 +431,29 @@ H_ADDR_MODE:    lda     #(H_0_ADDR & $ff)
                 adc     #0                  ; Not needed? TODO: Check it
                 rts
 
-; Note using this addressing mode for testing purposes
-BUFMOD_ADDR_MODE:
+; ATM this is used for testing
+BUFIDX_ADDR_MODE:
                 lda     #(TIME_STEP / $0100)
                 ldx     #(TIME_STEP & $00ff)
                 rts
 
+BUFMOD_ADDR_MODE:
+                ; lda     #(BUFFER / $0100)
+                ; sta     OPR_ADDRHI
+                ; lda     #(BUFFER & $00ff)
+                ; sta     OPR_ADDRLO
+                ; lda     V_I
+                ; and     #$f
+                ; sta     TMP
+                ; bsr     READ_OPCODE         ; Read the offset
+                ; add     TMP
+                ; and     #$f
+                ; lsla
+                ; lsla                        ; Multiply by 4
+                ; sub     OPR_ADDRLO
+                ; tax
+                ; sbc     OPR_ADDRHI
+                rts
 
 ;
 ; EXEC_PROGRAM
