@@ -224,7 +224,7 @@ BUFMOD         EQU      ((0 * 4) | AS_BUFMOD_ADDR)
 
 ENDOP           EQU     $ff
 
-; BUFFER:             db      $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+BUFFER:             db      $DE,$AD,$BE,$EF,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
 ;
 ; This table encodes the TOTP algorithm as a series of multi-byte operations
@@ -241,43 +241,40 @@ ENDOP           EQU     $ff
 ;
 OPCODES
 INIT_SHA1       db  V_A,H_0,COPYOP | LHS_CONSTANT,20,ENDOP        ; for (i=0; i<20; i++) a[i] = h[i];
-TEST            db  BUFIDX,V_TEMP1,SETOP | LHS_CONSTANT,$00       ; time_step = 0;
-                db  V_B,V_TEMP1,SETOP | LHS_CONSTANT,$01          ; b = 1;
-                db  BUFIDX,V_B,ADDOP | LHS_SAME_AS_DST            ; time_step += b;
-                db  BUFIDX,V_B,ADDOP | LHS_SAME_AS_DST,ENDOP      ; time_step += b;
-F__I_LT_20      db  V_F,V_C,ANDOP | LHS_V_B                       ; f = (c & b)
-                db  V_TEMP1,V_B,NOTOP | LHS_V_B                   ; temp = ~b;
-                db  V_TEMP1,V_D,ANDOP | LHS_SAME_AS_DST           ; d = temp & d;
-                db  V_F,V_TEMP1,OROP | LHS_SAME_AS_DST,ENDOP      ; f |= temp;
-F__I_GTE_80
-F__I_LT_40      db  V_F,V_C,XOROP | LHS_V_B                       ; f = (c ^ b)
-                db  V_F,V_D,XOROP | LHS_SAME_AS_DST,ENDOP         ; f ^= d;
-F__I_LT_60      db  V_F,V_C,ANDOP | LHS_V_B                       ; f = (c & b)
-                db  V_TEMP1,V_D,ANDOP | LHS_V_B                   ; temp = (d & b);
-                db  V_F,V_TEMP1,OROP | LHS_SAME_AS_DST            ; f |= temp;
-                db  V_TEMP1,V_C,ANDOP | LHS_V_D                   ; temp = (c & d);
-                db  V_F,V_TEMP1,OROP | LHS_SAME_AS_DST,ENDOP      ; f |= temp;
-BUF__I_GTE_16   db  V_TEMP1,BUFMOD,13,SETOP                       ; temp = buffer[(s+13) & MASK]
-                db  V_TEMP1,BUFMOD,8,XOROP | LHS_SAME_AS_DST      ; temp ^= buffer[(s+8) & MASK]
-                db  V_TEMP1,BUFMOD,2,XOROP | LHS_SAME_AS_DST      ; temp ^= buffer[(s+2) & MASK]
-                db  V_TEMP1,BUFMOD,0,XOROP | LHS_SAME_AS_DST      ; temp ^= buffer[s & MASK]
-                db  V_TEMP1,V_TEMP1,ROLOP | LHS_SAME_AS_DST       ; temp = ROL(temp, 1);
-                db  BUFIDX,V_TEMP1,SETOP | LHS_SAME_AS_DST,ENDOP  ; buffer[s*4] = temp;
-SHA1_ASSIGN     db  V_TEMP1,V_A,ROLOP | LHS_CONSTANT,5            ; temp = ROL(a, 5);
-                db  V_TEMP1,V_F,ADDOP | LHS_SAME_AS_DST           ; temp += f;
-                db  V_TEMP1,V_E,ADDOP | LHS_SAME_AS_DST           ; temp += e;
-                db  V_TEMP1,V_K,ADDOP | LHS_SAME_AS_DST           ; temp += k;
-                db  V_TEMP1,BUFIDX,ADDOP | LHS_SAME_AS_DST        ; temp += buffer[s*4]
-                db  V_E,V_D,SETOP | LHS_SAME_AS_DST               ; e = d;
-                db  V_D,V_C,SETOP | LHS_SAME_AS_DST               ; d = c;
-                db  V_C,V_D,ROLOP | LHS_CONSTANT,30               ; c = ROL(d, 30);
-                db  V_B,V_A,SETOP | LHS_SAME_AS_DST               ; b = a;
-                db  V_A,V_TEMP1,SETOP | LHS_SAME_AS_DST,ENDOP     ; a = temp;
-SHA1_END        db  H_0,V_A,ADDOP | LHS_SAME_AS_DST               ; h[0] += a;
-                db  H_1,V_B,ADDOP | LHS_SAME_AS_DST               ; h[1] += b;
-                db  H_2,V_C,ADDOP | LHS_SAME_AS_DST               ; h[2] += c;
-                db  H_3,V_D,ADDOP | LHS_SAME_AS_DST               ; h[3] += d;
-                db  H_4,V_E,ADDOP | LHS_SAME_AS_DST,ENDOP         ; h[4] += e;
+TEST            db  BUFIDX,BUFMOD,0,COPYOP | LHS_CONSTANT,4,ENDOP
+; F__I_LT_20      db  V_F,V_C,ANDOP | LHS_V_B                       ; f = (c & b)
+;                 db  V_TEMP1,V_B,NOTOP | LHS_V_B                   ; temp = ~b;
+;                 db  V_TEMP1,V_D,ANDOP | LHS_SAME_AS_DST           ; d = temp & d;
+;                 db  V_F,V_TEMP1,OROP | LHS_SAME_AS_DST,ENDOP      ; f |= temp;
+; F__I_GTE_80
+; F__I_LT_40      db  V_F,V_C,XOROP | LHS_V_B                       ; f = (c ^ b)
+;                 db  V_F,V_D,XOROP | LHS_SAME_AS_DST,ENDOP         ; f ^= d;
+; F__I_LT_60      db  V_F,V_C,ANDOP | LHS_V_B                       ; f = (c & b)
+;                 db  V_TEMP1,V_D,ANDOP | LHS_V_B                   ; temp = (d & b);
+;                 db  V_F,V_TEMP1,OROP | LHS_SAME_AS_DST            ; f |= temp;
+;                 db  V_TEMP1,V_C,ANDOP | LHS_V_D                   ; temp = (c & d);
+;                 db  V_F,V_TEMP1,OROP | LHS_SAME_AS_DST,ENDOP      ; f |= temp;
+; BUF__I_GTE_16   db  V_TEMP1,BUFMOD,13,SETOP                       ; temp = buffer[(s+13) & MASK]
+;                 db  V_TEMP1,BUFMOD,8,XOROP | LHS_SAME_AS_DST      ; temp ^= buffer[(s+8) & MASK]
+;                 db  V_TEMP1,BUFMOD,2,XOROP | LHS_SAME_AS_DST      ; temp ^= buffer[(s+2) & MASK]
+;                 db  V_TEMP1,BUFMOD,0,XOROP | LHS_SAME_AS_DST      ; temp ^= buffer[s & MASK]
+;                 db  V_TEMP1,V_TEMP1,ROLOP | LHS_SAME_AS_DST       ; temp = ROL(temp, 1);
+;                 db  BUFIDX,V_TEMP1,SETOP | LHS_SAME_AS_DST,ENDOP  ; buffer[s*4] = temp;
+; SHA1_ASSIGN     db  V_TEMP1,V_A,ROLOP | LHS_CONSTANT,5            ; temp = ROL(a, 5);
+;                 db  V_TEMP1,V_F,ADDOP | LHS_SAME_AS_DST           ; temp += f;
+;                 db  V_TEMP1,V_E,ADDOP | LHS_SAME_AS_DST           ; temp += e;
+;                 db  V_TEMP1,V_K,ADDOP | LHS_SAME_AS_DST           ; temp += k;
+;                 db  V_TEMP1,BUFIDX,ADDOP | LHS_SAME_AS_DST        ; temp += buffer[s*4]
+;                 db  V_E,V_D,SETOP | LHS_SAME_AS_DST               ; e = d;
+;                 db  V_D,V_C,SETOP | LHS_SAME_AS_DST               ; d = c;
+;                 db  V_C,V_D,ROLOP | LHS_CONSTANT,30               ; c = ROL(d, 30);
+;                 db  V_B,V_A,SETOP | LHS_SAME_AS_DST               ; b = a;
+;                 db  V_A,V_TEMP1,SETOP | LHS_SAME_AS_DST,ENDOP     ; a = temp;
+; SHA1_END        db  H_0,V_A,ADDOP | LHS_SAME_AS_DST               ; h[0] += a;
+;                 db  H_1,V_B,ADDOP | LHS_SAME_AS_DST               ; h[1] += b;
+;                 db  H_2,V_C,ADDOP | LHS_SAME_AS_DST               ; h[2] += c;
+;                 db  H_3,V_D,ADDOP | LHS_SAME_AS_DST               ; h[3] += d;
+;                 db  H_4,V_E,ADDOP | LHS_SAME_AS_DST,ENDOP         ; h[4] += e;
 
 ;
 ; <autogenerated>
@@ -351,7 +348,8 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 TESTSTUFF
                 lda     #TEST-OPCODES
                 sta     OFFSET
-                bsr     EXEC_PROGRAM
+                clr     V_I
+                jsr     EXEC_PROGRAM
 
                 bra     DEBUGUNIX
 
@@ -438,21 +436,22 @@ BUFIDX_ADDR_MODE:
                 rts
 
 BUFMOD_ADDR_MODE:
-                ; lda     #(BUFFER / $0100)
-                ; sta     OPR_ADDRHI
-                ; lda     #(BUFFER & $00ff)
-                ; sta     OPR_ADDRLO
-                ; lda     V_I
-                ; and     #$f
-                ; sta     TMP
-                ; bsr     READ_OPCODE         ; Read the offset
-                ; add     TMP
-                ; and     #$f
-                ; lsla
-                ; lsla                        ; Multiply by 4
-                ; sub     OPR_ADDRLO
-                ; tax
-                ; sbc     OPR_ADDRHI
+                lda     #(BUFFER / $0100)
+                sta     OPR_ADDRHI
+                lda     #(BUFFER & $00ff)
+                sta     OPR_ADDRLO
+                lda     V_I
+                and     #$f
+                sta     TMP
+                bsr     READ_OPCODE         ; Read the offset
+                add     TMP
+                and     #$f
+                lsla
+                lsla                        ; Multiply by 4
+                add     OPR_ADDRLO
+                tax
+                lda     OPR_ADDRHI
+                adc     #0
                 rts
 
 ;
