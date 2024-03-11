@@ -77,7 +77,7 @@ H2_4_ADDR           EQU     $04f6
 ; identified by a unique code, and the corresponding callback routine is called to perform the operation. The callback
 ; routine is determined by the operation code and is stored in a table for easy access.
 ;
-COPYOP_OFFSET   EQU     (OP_SAVE-OP_CB)-1
+COPYOP_OFFSET   EQU     (COPY_CB-OP_CB)-1
 ROLOP_OFFSET    EQU     (ROL_CB-OP_CB)-1
 NOTOP_OFFSET    EQU     (NOT_CB-OP_CB)-1
 SETOP_OFFSET    EQU     (SET_CB-OP_CB)-1
@@ -224,7 +224,7 @@ BUFMOD         EQU      ((0 * 4) | AS_BUFMOD_ADDR)
 
 ENDOP           EQU     $ff
 
-BUFFER:             db      $DE,$AD,$BE,$EF,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+BUFFER:             db      $DE,$AD,$BE,$EF,$CA,$FE,$BA,$BE,$01,$02,$03,$04,$05,$06,$07,$08,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
 ;
 ; This table encodes the TOTP algorithm as a series of multi-byte operations
@@ -241,7 +241,7 @@ BUFFER:             db      $DE,$AD,$BE,$EF,$00,$00,$00,$00,$00,$00,$00,$00,$00,
 ;
 OPCODES
 INIT_SHA1       db  V_A,H_0,COPYOP | LHS_CONSTANT,20,ENDOP        ; for (i=0; i<20; i++) a[i] = h[i];
-TEST            db  BUFIDX,BUFMOD,0,COPYOP | LHS_CONSTANT,4,ENDOP
+TEST            db  BUFIDX,BUFMOD,0,COPYOP,ENDOP
 ; F__I_LT_20      db  V_F,V_C,ANDOP | LHS_V_B                       ; f = (c & b)
 ;                 db  V_TEMP1,V_B,NOTOP | LHS_V_B                   ; temp = ~b;
 ;                 db  V_TEMP1,V_D,ANDOP | LHS_SAME_AS_DST           ; d = temp & d;
@@ -348,9 +348,8 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 TESTSTUFF
                 lda     #TEST-OPCODES
                 sta     OFFSET
-                clr     V_I
                 jsr     EXEC_PROGRAM
-
+                inc     V_I
                 bra     DEBUGUNIX
 
 FIRSTBYTE:      lda     #LOADBYTE_ADDRLO
@@ -436,10 +435,6 @@ BUFIDX_ADDR_MODE:
                 rts
 
 BUFMOD_ADDR_MODE:
-                lda     #(BUFFER / $0100)
-                sta     OPR_ADDRHI
-                lda     #(BUFFER & $00ff)
-                sta     OPR_ADDRLO
                 lda     V_I
                 and     #$f
                 sta     TMP
@@ -448,9 +443,9 @@ BUFMOD_ADDR_MODE:
                 and     #$f
                 lsla
                 lsla                        ; Multiply by 4
-                add     OPR_ADDRLO
+                add     #(BUFFER & $00ff)
                 tax
-                lda     OPR_ADDRHI
+                lda     #(BUFFER / $0100)
                 adc     #0
                 rts
 
@@ -602,10 +597,10 @@ OP_RHS_ADDRHI   EQU     *+1                     ; <- Self modifying byte to set 
 OP_RHS_ADDRLO   EQU     *+2                     ; <- Self modifying byte to set the low byte of the right hand side operand address
                 lda     $C0DE,X                 ; Get the right hand side byte offset by X
 OP_CB           EQU     *+1                     ; <- Self modifying byte to set the operation callback
-                bsr     OP_SAVE                 ; Call the right operation callback
+                bsr     COPY_CB                 ; Call the right operation callback
 OP_DST_ADDRHI   EQU     *+1                     ; <- Self modifying byte to get the destination address
 OP_DST_ADDRLO   EQU     *+2                     ; <- Self modifying byte to get the destination address
-OP_SAVE:        sta     $C0DE,X                 ; Save the result offset by X
+                sta     $C0DE,X                 ; Save the result offset by X
                 tstx                            ; Is this the last byte?
                 bne     OP_REPEAT               ; If not, repeat the operation
 ROLOP_LAST_BYTE bcc     OP_END                  ; If the carry flag is clear...
@@ -627,12 +622,10 @@ OP_END:         lda     #4                      ; Reset the number of bytes to o
                 rts                             ; We are done
 
 ;
-; COPY_CB doesn't exist because it is the default behavior
-;
-
-;
 ; No parameter callbacks
 ;
+COPY_CB:        rts
+
 ROL_CB:         rola                            ; Rotate the accumulator left carrying the high bit into the carry flag
                 rts
 
@@ -703,6 +696,7 @@ MAIN:
                 sta     WRISTAPP_FLAGS
                 lda     #30
                 sta     COUNTDOWN
+                clr     V_I
                 rts
 
 ; vim: set expandtab ts=4 sw=4 filetype=asm textwidth=120:
