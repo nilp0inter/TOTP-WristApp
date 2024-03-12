@@ -141,7 +141,7 @@ LOADBYTE_ADDRLO     EQU     (LOADBYTE & $00FF)
 ;
 ; Multi-byte operation codes
 ;
-COPYOP          EQU     (0 * 4)           ; No callback
+COPYOP          EQU     (0 * 4)           ; No parameters
 ROLOP           EQU     (1 * 4)           ; No parameters
 NOTOP           EQU     (2 * 4)           ; No parameters
 SETOP           EQU     (3 * 4)           ; 1-byte parameter  @ OPR_ADDRLO
@@ -208,18 +208,20 @@ V_K             EQU     ((6 * 4) | AS_V_ADDR)
 V_TEMP1         EQU     ((7 * 4) | AS_V_ADDR)
 V_TEMP2         EQU     ((8 * 4) | AS_V_ADDR)
 V_TEMP3         EQU     ((9 * 4) | AS_V_ADDR)
+
 H_0             EQU     ((0 * 4) | AS_H_ADDR)
 H_1             EQU     ((1 * 4) | AS_H_ADDR)
 H_2             EQU     ((2 * 4) | AS_H_ADDR)
 H_3             EQU     ((3 * 4) | AS_H_ADDR)
 H_4             EQU     ((4 * 4) | AS_H_ADDR)
-H2_0            EQU     ((0 * 4) | AS_H_ADDR)
-H2_1            EQU     ((1 * 4) | AS_H_ADDR)
-H2_2            EQU     ((2 * 4) | AS_H_ADDR)
-H2_3            EQU     ((3 * 4) | AS_H_ADDR)
-H2_4            EQU     ((4 * 4) | AS_H_ADDR)
+H2_0            EQU     ((5 * 4) | AS_H_ADDR)
+H2_1            EQU     ((6 * 4) | AS_H_ADDR)
+H2_2            EQU     ((7 * 4) | AS_H_ADDR)
+H2_3            EQU     ((8 * 4) | AS_H_ADDR)
+H2_4            EQU     ((9 * 4) | AS_H_ADDR)
 
 BUFIDX         EQU      ((0 * 4) | AS_BUFIDX_ADDR)
+
 BUFMOD         EQU      ((0 * 4) | AS_BUFMOD_ADDR)
 
 ENDOP           EQU     $ff
