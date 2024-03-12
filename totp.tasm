@@ -24,7 +24,7 @@ INCLUDE         "WRISTAPP.I"
 ;   - TOTP Variables:
 ;       - V_A to V_F (6 variables * 4 bytes each): Variables used in intermediate steps of SHA1 calculations.
 ;       - V_K (4 bytes): Additional variable for SHA1 computation.
-;       - V_TEMP1 to V_TEMP3 (3 variables * 4 bytes each): Temporary storage during calculations.
+;       - V_TEMP1 to V_TEMP2 (2 variables * 4 bytes each): Temporary storage during calculations.
 ;
 ;     Note: Of the allocated 40 bytes, 36 are used for TOTP variables (V_A-V_F, V_K, V_TEMP, V_TEMP2) during SHA1
 ;     calculations. The original variables (BUF_PHONENUM, EXTRACTBUF) are key for EEPROM data recovery outside these
@@ -49,13 +49,13 @@ INCLUDE         "WRISTAPP.I"
 V_A_ADDR            EQU     $043a
 V_B_ADDR            EQU     $043e
 V_C_ADDR            EQU     $0442
-V_D_ADDR            EQU     $0446
-V_E_ADDR            EQU     $044a
-V_F_ADDR            EQU     $044e
-V_K_ADDR            EQU     $0452
-V_TEMP1_ADDR        EQU     $0456
-V_TEMP2_ADDR        EQU     $045a
-V_TEMP3_ADDR        EQU     $045e
+; V_TEMP2_ADDR        EQU     $0446  ; This get's reserved to store temporary EEPROM data
+V_D_ADDR            EQU     $044a
+V_E_ADDR            EQU     $044e
+V_F_ADDR            EQU     $0452
+V_K_ADDR            EQU     $0456
+V_TEMP1_ADDR        EQU     $045a
+V_TEMP2_ADDR        EQU     $045e
 
 H_0_ADDR            EQU     $04d2
 H_1_ADDR            EQU     $04d6
@@ -81,6 +81,7 @@ COPYOP_OFFSET   EQU     (COPY_CB-OP_CB)-1
 ROLOP_OFFSET    EQU     (ROL_CB-OP_CB)-1
 NOTOP_OFFSET    EQU     (NOT_CB-OP_CB)-1
 SETOP_OFFSET    EQU     (SET_CB-OP_CB)-1
+PROMREAD_OFFSET EQU     (PROMREAD_CB-OP_CB)-1
 ADDOP_OFFSET    EQU     (ADD_CB-OP_CB)-1
 SUBOP_OFFSET    EQU     (SUB_CB-OP_CB)-1
 ANDOP_OFFSET    EQU     (AND_CB-OP_CB)-1
@@ -88,7 +89,7 @@ OROP_OFFSET     EQU     (OR_CB-OP_CB)-1
 XOROP_OFFSET    EQU     (XOR_CB-OP_CB)-1
 
 MAX_0BYTE_OP    EQU     NOTOP_OFFSET+1
-MAX_1BYTE_OP    EQU     SETOP_OFFSET+1
+MAX_1BYTE_OP    EQU     PROMREAD_OFFSET+1
 
 OPR_ADDRHI      EQU     $60
 OPR_ADDRLO      EQU     $61
@@ -145,24 +146,26 @@ COPYOP          EQU     (0 * 4)           ; No parameters
 ROLOP           EQU     (1 * 4)           ; No parameters
 NOTOP           EQU     (2 * 4)           ; No parameters
 SETOP           EQU     (3 * 4)           ; 1-byte parameter  @ OPR_ADDRLO
-ADDOP           EQU     (4 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
-SUBOP           EQU     (5 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
-ANDOP           EQU     (6 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
-OROP            EQU     (7 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
-XOROP           EQU     (8 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+PROMREADOP      EQU     (4 * 4)           ; 1-byte parameter  @ OPR_ADDRLO
+ADDOP           EQU     (5 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+SUBOP           EQU     (6 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+ANDOP           EQU     (7 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+OROP            EQU     (8 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
+XOROP           EQU     (9 * 4)           ; 2-byte parameters @ OPR_ADDRHI, OPR_ADDRLO
 
 ;
 ; This table is used to call the right operation callback
 ;
-OPERATIONS      db      COPYOP_OFFSET & $ff
-                db      ROLOP_OFFSET  & $ff
-                db      NOTOP_OFFSET  & $ff
-                db      SETOP_OFFSET  & $ff
-                db      ADDOP_OFFSET  & $ff
-                db      SUBOP_OFFSET  & $ff
-                db      ANDOP_OFFSET  & $ff
-                db      OROP_OFFSET   & $ff
-                db      XOROP_OFFSET  & $ff
+OPERATIONS      db      COPYOP_OFFSET    & $ff
+                db      ROLOP_OFFSET     & $ff
+                db      NOTOP_OFFSET     & $ff
+                db      SETOP_OFFSET     & $ff
+                db      PROMREAD_OFFSET  & $ff
+                db      ADDOP_OFFSET     & $ff
+                db      SUBOP_OFFSET     & $ff
+                db      ANDOP_OFFSET     & $ff
+                db      OROP_OFFSET      & $ff
+                db      XOROP_OFFSET     & $ff
 
 LHS_SAME_AS_DST_OFFSET      EQU     (LHS_SAME_AS_DST_CB-EXEC_LHS_CB)-1
 LHS_CONSTANT_OFFSET         EQU     (LHS_CONSTANT_CB-EXEC_LHS_CB)-1
@@ -198,35 +201,34 @@ AS_H_ADDR       EQU     1
 AS_BUFIDX_ADDR  EQU     2
 AS_BUFMOD_ADDR  EQU     3
 
-V_A             EQU     ((0 * 4) | AS_V_ADDR)
-V_B             EQU     ((1 * 4) | AS_V_ADDR)
-V_C             EQU     ((2 * 4) | AS_V_ADDR)
-V_D             EQU     ((3 * 4) | AS_V_ADDR)
-V_E             EQU     ((4 * 4) | AS_V_ADDR)
-V_F             EQU     ((5 * 4) | AS_V_ADDR)
-V_K             EQU     ((6 * 4) | AS_V_ADDR)
-V_TEMP1         EQU     ((7 * 4) | AS_V_ADDR)
-V_TEMP2         EQU     ((8 * 4) | AS_V_ADDR)
-V_TEMP3         EQU     ((9 * 4) | AS_V_ADDR)
+V_A             EQU     ((V_A_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_B             EQU     ((V_B_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_C             EQU     ((V_C_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_D             EQU     ((V_D_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_E             EQU     ((V_E_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_F             EQU     ((V_F_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_K             EQU     ((V_K_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_TEMP1         EQU     ((V_TEMP1_ADDR - V_A_ADDR) | AS_V_ADDR)
+V_TEMP2         EQU     ((V_TEMP2_ADDR - V_A_ADDR) | AS_V_ADDR)
 
-H_0             EQU     ((0 * 4) | AS_H_ADDR)
-H_1             EQU     ((1 * 4) | AS_H_ADDR)
-H_2             EQU     ((2 * 4) | AS_H_ADDR)
-H_3             EQU     ((3 * 4) | AS_H_ADDR)
-H_4             EQU     ((4 * 4) | AS_H_ADDR)
-H2_0            EQU     ((5 * 4) | AS_H_ADDR)
-H2_1            EQU     ((6 * 4) | AS_H_ADDR)
-H2_2            EQU     ((7 * 4) | AS_H_ADDR)
-H2_3            EQU     ((8 * 4) | AS_H_ADDR)
-H2_4            EQU     ((9 * 4) | AS_H_ADDR)
+H_0             EQU     ((H_0_ADDR - H_0_ADDR)  | AS_H_ADDR)
+H_1             EQU     ((H_1_ADDR - H_0_ADDR)  | AS_H_ADDR)
+H_2             EQU     ((H_2_ADDR - H_0_ADDR)  | AS_H_ADDR)
+H_3             EQU     ((H_3_ADDR - H_0_ADDR)  | AS_H_ADDR)
+H_4             EQU     ((H_4_ADDR - H_0_ADDR)  | AS_H_ADDR)
+H2_0            EQU     ((H2_0_ADDR - H_0_ADDR) | AS_H_ADDR)
+H2_1            EQU     ((H2_1_ADDR - H_0_ADDR) | AS_H_ADDR)
+H2_2            EQU     ((H2_2_ADDR - H_0_ADDR) | AS_H_ADDR)
+H2_3            EQU     ((H2_3_ADDR - H_0_ADDR) | AS_H_ADDR)
+H2_4            EQU     ((H2_4_ADDR - H_0_ADDR) | AS_H_ADDR)
 
-BUFIDX         EQU      ((0 * 4) | AS_BUFIDX_ADDR)
+BUFIDX          EQU     ((0 * 4) | AS_BUFIDX_ADDR)
 
-BUFMOD         EQU      ((0 * 4) | AS_BUFMOD_ADDR)
+BUFMOD          EQU     ((0 * 4) | AS_BUFMOD_ADDR)
 
 ENDOP           EQU     $ff
 
-BUFFER:             db      $DE,$AD,$BE,$EF,$CA,$FE,$BA,$BE,$01,$02,$03,$04,$05,$06,$07,$08,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+BUFFER:         db      $DE,$AD,$BE,$EF,$CA,$FE,$BA,$BE,$01,$02,$03,$04,$05,$06,$07,$08,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
 ;
 ; This table encodes the TOTP algorithm as a series of multi-byte operations
@@ -243,7 +245,10 @@ BUFFER:             db      $DE,$AD,$BE,$EF,$CA,$FE,$BA,$BE,$01,$02,$03,$04,$05,
 ;
 OPCODES
 INIT_SHA1       db  V_A,H_0,COPYOP | LHS_CONSTANT,20,ENDOP        ; for (i=0; i<20; i++) a[i] = h[i];
-TEST            db  BUFIDX,BUFMOD,0,COPYOP,ENDOP
+; TEST            db  BUFIDX,BUFMOD,0,COPYOP,ENDOP
+TEST            db  V_D,BUFMOD,0,COPYOP | LHS_SAME_AS_DST
+                db  BUFIDX,BUFIDX,PROMREADOP | LHS_CONSTANT,0
+                db  BUFIDX,V_D,COPYOP | LHS_SAME_AS_DST,ENDOP
 ; F__I_LT_20      db  V_F,V_C,ANDOP | LHS_V_B                       ; f = (c & b)
 ;                 db  V_TEMP1,V_B,NOTOP | LHS_V_B                   ; temp = ~b;
 ;                 db  V_TEMP1,V_D,ANDOP | LHS_SAME_AS_DST           ; d = temp & d;
@@ -644,6 +649,20 @@ SET_CB_VALUE    EQU     *+1                     ; <- Self modifying byte to set 
                 clra
                 sta     SET_CB_VALUE
                 lda     TMP
+                rts
+
+PROMREAD_CB:    nop
+PROMPO_VALUE    EQU     *+1                     ; <- Self modifying byte to set the value to set
+                lda    #$C0;DE                 ; <- Self modifying byte to set the left hand side operand address
+                sta    TMP
+                txa
+                add    TMP
+                sta    INST_ADDRLO
+                adc    #0
+                sta    INST_ADDRHI
+                stx    TMP
+                jsr    GET_INST_BYTE
+                ldx    TMP
                 rts
 
 ;
