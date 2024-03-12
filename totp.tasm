@@ -354,8 +354,7 @@ SHOWBANNER      lda     #S6_TOTP-START          ; Get the offset for the second 
 
 TESTSTUFF
                 lda     #TEST-OPCODES
-                sta     OFFSET
-                jsr     EXEC_PROGRAM
+                jsr     START_PROGRAM
                 inc     V_I
                 bra     DEBUGUNIX
 
@@ -460,8 +459,8 @@ BUFMOD_ADDR_MODE:
 ; EXEC_PROGRAM
 ;   Run the program pointed to by the OFFSET variable
 ;
-EXEC_PROGRAM:
-                bsr     READ_OPCODE
+START_PROGRAM:  sta     OFFSET
+EXEC_PROGRAM:   bsr     READ_OPCODE
                 cmp     #ENDOP
                 bne     EXEC_INSTR
                 rts
